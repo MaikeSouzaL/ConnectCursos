@@ -172,6 +172,17 @@ export interface Credential {
   mustChangePassword: boolean
 }
 
+export interface Message {
+  id: ID
+  /** 'geral' ou o id da turma (cls_XX) */
+  channelId: string
+  authorId: string
+  authorName: string
+  authorRole: Role
+  content: string
+  at: string // ISO datetime
+}
+
 export type InvoiceStatus = 'emitida' | 'cancelada'
 
 export interface Invoice {
@@ -246,4 +257,5 @@ export interface Database {
   payments: Payment[]
   credentials: Credential[]
   invoices: Invoice[]
+  messages: Message[]
 }

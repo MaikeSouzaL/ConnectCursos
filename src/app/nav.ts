@@ -4,6 +4,7 @@ import {
   GraduationCapIcon,
   LayoutDashboardIcon,
   type LucideIcon,
+  MessagesSquareIcon,
   QrCodeIcon,
   SettingsIcon,
   UsersIcon,
@@ -40,6 +41,7 @@ export const adminNav: NavSection[] = [
     items: [
       { label: 'Chamadas & QR', to: '/admin/chamadas', icon: QrCodeIcon },
       { label: 'Salas & Agenda', to: '/admin/salas', icon: CalendarDaysIcon },
+      { label: 'Mensagens', to: '/admin/mensagens', icon: MessagesSquareIcon },
     ],
   },
   {

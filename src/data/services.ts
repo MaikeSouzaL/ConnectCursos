@@ -12,7 +12,9 @@ import type {
   Course,
   DashboardKpis,
   Invoice,
+  Message,
   Payment,
+  Role,
   RevenueSeriesPoint,
   Room,
   RoomBooking,
@@ -527,6 +529,81 @@ export const financeService = {
       out.push({ month: MONTHS[i], ym: ymStr, entradas, saidas, saldo, realizado: true })
     }
     return delay(out)
+  },
+}
+
+// ————————————————————————————————————— Comunicação (chat)
+export interface ChatChannel {
+  id: string
+  name: string
+  kind: 'geral' | 'turma'
+  courseName?: string
+  memberCount: number
+  lastMessageAt?: string
+}
+
+function channelMembers(channelId: string): Student[] {
+  if (channelId === 'geral') {
+    return db.students.filter((s) => s.status !== 'concluido')
+  }
+  const cls = db.classes.find((c) => c.id === channelId)
+  if (!cls) return []
+  return db.students.filter((s) => cls.studentIds.includes(s.id))
+}
+
+export const messagesService = {
+  /** Canais: Geral (todos os alunos) + um por turma (membros = matriculados). */
+  async channels(): Promise<ChatChannel[]> {
+    const lastAt = (id: string) =>
+      db.messages
+        .filter((m) => m.channelId === id)
+        .sort((a, b) => b.at.localeCompare(a.at))[0]?.at
+
+    const geral: ChatChannel = {
+      id: 'geral',
+      name: 'Geral',
+      kind: 'geral',
+      memberCount: channelMembers('geral').length,
+      lastMessageAt: lastAt('geral'),
+    }
+    const turmas: ChatChannel[] = db.classes
+      .filter((c) => c.status !== 'concluida')
+      .map((c) => ({
+        id: c.id,
+        name: c.name,
+        kind: 'turma' as const,
+        courseName: courseName(c.courseId),
+        memberCount: c.studentIds.length,
+        lastMessageAt: lastAt(c.id),
+      }))
+    return delay(clone([geral, ...turmas]))
+  },
+  async list(channelId: string): Promise<Message[]> {
+    const out = db.messages
+      .filter((m) => m.channelId === channelId)
+      .sort((a, b) => a.at.localeCompare(b.at))
+    return delay(clone(out))
+  },
+  async members(channelId: string): Promise<Student[]> {
+    return delay(clone(channelMembers(channelId)))
+  },
+  async send(
+    channelId: string,
+    author: { id: string; name: string; role: Role },
+    content: string,
+  ): Promise<Message> {
+    const msg: Message = {
+      id: `msg_${pad(db.messages.length + 1)}`,
+      channelId,
+      authorId: author.id,
+      authorName: author.name,
+      authorRole: author.role,
+      content: content.trim(),
+      at: new Date().toISOString(),
+    }
+    db.messages.push(msg)
+    saveDb()
+    return delay(clone(msg))
   },
 }
 

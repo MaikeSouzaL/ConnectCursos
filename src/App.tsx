@@ -23,6 +23,7 @@ const RoomsPage = lazy(() => import('@/features/rooms/rooms-page').then((m) => (
 const AttendancePage = lazy(() => import('@/features/attendance/attendance-page').then((m) => ({ default: m.AttendancePage })))
 const CounterTerminal = lazy(() => import('@/features/attendance/counter-terminal').then((m) => ({ default: m.CounterTerminal })))
 const FinancePage = lazy(() => import('@/features/finance/finance-page').then((m) => ({ default: m.FinancePage })))
+const MessagesPage = lazy(() => import('@/features/messages/messages-page').then((m) => ({ default: m.MessagesPage })))
 const SettingsPage = lazy(() => import('@/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AlunoLayout = lazy(() => import('@/components/layout/aluno-layout').then((m) => ({ default: m.AlunoLayout })))
 const AlunoHomePage = lazy(() => import('@/features/aluno/home-page').then((m) => ({ default: m.AlunoHomePage })))
@@ -79,6 +80,7 @@ export default function App() {
               <Route path="professores/:id" element={<TeacherDetailPage />} />
               <Route path="chamadas" element={<AttendancePage />} />
               <Route path="salas" element={<RoomsPage />} />
+              <Route path="mensagens" element={<MessagesPage />} />
               <Route path="financeiro" element={<FinancePage />} />
               <Route path="configuracoes" element={<SettingsPage />} />
             </Route>

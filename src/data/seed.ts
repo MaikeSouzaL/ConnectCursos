@@ -10,6 +10,7 @@ import type {
   Credential,
   Database,
   Invoice,
+  Message,
   Payment,
   Room,
   RoomBooking,
@@ -434,6 +435,38 @@ const invoices: Invoice[] = students.slice(0, 8).map((s, i) => ({
   status: chance(0.9) ? 'emitida' : 'cancelada',
 }))
 
+// —— Mensagens (comunicação estilo Discord) ——
+const firstClass = classes[0]
+const messages: Message[] = [
+  {
+    id: 'msg_01',
+    channelId: 'geral',
+    authorId: 'usr_admin',
+    authorName: 'Marina Diretora',
+    authorRole: 'admin',
+    content: 'Bem-vindos à Conect Cursos! Este é o canal geral de avisos. 🎉',
+    at: iso(addDays(TODAY, -3)),
+  },
+  {
+    id: 'msg_02',
+    channelId: 'geral',
+    authorId: 'usr_admin',
+    authorName: 'Marina Diretora',
+    authorRole: 'admin',
+    content: 'Lembrete: as mensalidades vencem todo dia 10. Dúvidas? É só chamar por aqui. 💛',
+    at: iso(addDays(TODAY, -1)),
+  },
+  {
+    id: 'msg_03',
+    channelId: firstClass?.id ?? 'cls_01',
+    authorId: 'usr_admin',
+    authorName: 'Marina Diretora',
+    authorRole: 'admin',
+    content: 'Pessoal, a aula desta semana será no Lab. Órbita. Cheguem 10 min antes! 🚀',
+    at: iso(addDays(TODAY, -1)),
+  },
+]
+
 export function createDatabase(): Database {
   return {
     users,
@@ -447,5 +480,6 @@ export function createDatabase(): Database {
     payments,
     credentials,
     invoices,
+    messages,
   }
 }

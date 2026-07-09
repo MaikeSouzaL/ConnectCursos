@@ -4,6 +4,7 @@ import {
   ChevronsUpDownIcon,
   LogOutIcon,
   MenuIcon,
+  MessagesSquareIcon,
   UserCogIcon,
 } from 'lucide-react'
 import { Logo, Logomark } from '@/components/brand/Logo'
@@ -81,10 +82,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
       </ScrollArea>
       <div className="p-3">
         <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 p-3">
-          <p className="text-xs font-medium">Precisa de ajuda?</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">Central de suporte da Conect.</p>
-          <Button size="sm" variant="outline" className="mt-2.5 w-full">
-            Abrir suporte
+          <p className="text-xs font-medium">Comunicação</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">Fale com os alunos e turmas.</p>
+          <Button size="sm" variant="outline" className="mt-2.5 w-full" asChild>
+            <NavLink to="/admin/mensagens" onClick={onNavigate}>
+              <MessagesSquareIcon className="size-4" />
+              Abrir mensagens
+            </NavLink>
           </Button>
         </div>
       </div>

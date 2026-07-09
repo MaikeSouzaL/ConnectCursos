@@ -5,7 +5,7 @@ import type { Database } from './types'
  * "Banco" mock. Persiste em localStorage para sobreviver a reloads (F5).
  * A versão no nome da chave invalida dados antigos quando o schema muda.
  */
-const STORAGE_KEY = 'conect-db-v6'
+const STORAGE_KEY = 'conect-db-v7'
 
 function load(): Database | null {
   try {
