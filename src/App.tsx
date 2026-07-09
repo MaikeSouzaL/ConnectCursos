@@ -24,6 +24,7 @@ const AttendancePage = lazy(() => import('@/features/attendance/attendance-page'
 const CounterTerminal = lazy(() => import('@/features/attendance/counter-terminal').then((m) => ({ default: m.CounterTerminal })))
 const FinancePage = lazy(() => import('@/features/finance/finance-page').then((m) => ({ default: m.FinancePage })))
 const MessagesPage = lazy(() => import('@/features/messages/messages-page').then((m) => ({ default: m.MessagesPage })))
+const AppChat = lazy(() => import('@/features/messages/app-chat').then((m) => ({ default: m.AppChat })))
 const SettingsPage = lazy(() => import('@/features/settings/settings-page').then((m) => ({ default: m.SettingsPage })))
 const AlunoLayout = lazy(() => import('@/components/layout/aluno-layout').then((m) => ({ default: m.AlunoLayout })))
 const AlunoHomePage = lazy(() => import('@/features/aluno/home-page').then((m) => ({ default: m.AlunoHomePage })))
@@ -106,6 +107,7 @@ export default function App() {
             >
               <Route index element={<ProfessorHomePage />} />
               <Route path="scan" element={<ProfessorScanPage />} />
+              <Route path="mensagens" element={<AppChat />} />
               <Route path="turmas" element={<ProfessorTurmasPage />} />
               <Route path="turmas/:id" element={<ProfessorChamadaPage />} />
               <Route path="salas" element={<ProfessorSalasPage />} />
@@ -123,6 +125,7 @@ export default function App() {
             >
               <Route index element={<AlunoHomePage />} />
               <Route path="scan" element={<AlunoScanPage />} />
+              <Route path="mensagens" element={<AppChat />} />
               <Route path="presenca" element={<AlunoPresencaPage />} />
               <Route path="financeiro" element={<AlunoFinanceiroPage />} />
               <Route path="perfil" element={<AlunoPerfilPage />} />

@@ -551,32 +551,46 @@ function channelMembers(channelId: string): Student[] {
   return db.students.filter((s) => cls.studentIds.includes(s.id))
 }
 
-export const messagesService = {
-  /** Canais: Geral (todos os alunos) + um por turma (membros = matriculados). */
-  async channels(): Promise<ChatChannel[]> {
-    const lastAt = (id: string) =>
-      db.messages
-        .filter((m) => m.channelId === id)
-        .sort((a, b) => b.at.localeCompare(a.at))[0]?.at
+function buildChannels(): ChatChannel[] {
+  const lastAt = (id: string) =>
+    db.messages.filter((m) => m.channelId === id).sort((a, b) => b.at.localeCompare(a.at))[0]?.at
+  const geral: ChatChannel = {
+    id: 'geral',
+    name: 'Geral',
+    kind: 'geral',
+    memberCount: channelMembers('geral').length,
+    lastMessageAt: lastAt('geral'),
+  }
+  const turmas: ChatChannel[] = db.classes
+    .filter((c) => c.status !== 'concluida')
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      kind: 'turma' as const,
+      courseName: courseName(c.courseId),
+      memberCount: c.studentIds.length,
+      lastMessageAt: lastAt(c.id),
+    }))
+  return [geral, ...turmas]
+}
 
-    const geral: ChatChannel = {
-      id: 'geral',
-      name: 'Geral',
-      kind: 'geral',
-      memberCount: channelMembers('geral').length,
-      lastMessageAt: lastAt('geral'),
+export const messagesService = {
+  /** Todos os canais (visão do admin). */
+  async channels(): Promise<ChatChannel[]> {
+    return delay(clone(buildChannels()))
+  },
+  /** Canais visíveis para o usuário: Geral + as turmas dele (matriculadas/lecionadas). */
+  async channelsFor(role: Role, linkedId?: string): Promise<ChatChannel[]> {
+    const all = buildChannels()
+    if (role === 'admin') return delay(clone(all))
+    if (role === 'aluno') {
+      const student = db.students.find((s) => s.id === linkedId)
+      const ids = new Set(student?.classIds ?? [])
+      return delay(clone(all.filter((c) => c.id === 'geral' || ids.has(c.id))))
     }
-    const turmas: ChatChannel[] = db.classes
-      .filter((c) => c.status !== 'concluida')
-      .map((c) => ({
-        id: c.id,
-        name: c.name,
-        kind: 'turma' as const,
-        courseName: courseName(c.courseId),
-        memberCount: c.studentIds.length,
-        lastMessageAt: lastAt(c.id),
-      }))
-    return delay(clone([geral, ...turmas]))
+    // professor: turmas que leciona
+    const teaching = new Set(db.classes.filter((c) => c.teacherId === linkedId).map((c) => c.id))
+    return delay(clone(all.filter((c) => c.id === 'geral' || teaching.has(c.id))))
   },
   async list(channelId: string): Promise<Message[]> {
     const out = db.messages

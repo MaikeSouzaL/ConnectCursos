@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   CalendarCheckIcon,
   HomeIcon,
+  MessagesSquareIcon,
   QrCodeIcon,
   UserIcon,
   WalletIcon,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Logomark } from '@/components/brand/Logo'
+import { Button } from '@/components/ui/button'
 import { PageLoading } from '@/components/shared/page-loading'
 import { flushQueue, usePendingScans } from '@/features/aluno/checkin-queue'
 import { useOnline } from '@/features/aluno/use-online'
@@ -40,15 +42,22 @@ export function AlunoLayout() {
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-2xl sm:border-x sm:border-border">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md">
         <Logomark className="size-8" />
-        {!online ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
-            <WifiOffIcon className="size-3.5" /> Offline
-          </span>
-        ) : pending > 0 ? (
-          <span className="rounded-full bg-info/15 px-2.5 py-1 text-xs font-medium text-info">
-            Sincronizando…
-          </span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          {!online ? (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
+              <WifiOffIcon className="size-3.5" /> Offline
+            </span>
+          ) : pending > 0 ? (
+            <span className="rounded-full bg-info/15 px-2.5 py-1 text-xs font-medium text-info">
+              Sincronizando…
+            </span>
+          ) : null}
+          <Button variant="ghost" size="icon-sm" asChild aria-label="Mensagens">
+            <NavLink to="/aluno/mensagens">
+              <MessagesSquareIcon className="size-5" />
+            </NavLink>
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 px-4 py-5 pb-28">

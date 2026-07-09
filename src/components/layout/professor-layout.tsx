@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import {
   CalendarDaysIcon,
   HomeIcon,
+  MessagesSquareIcon,
   QrCodeIcon,
   UserIcon,
   UsersIcon,
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Logomark } from '@/components/brand/Logo'
+import { Button } from '@/components/ui/button'
 import { PageLoading } from '@/components/shared/page-loading'
 import { flushQueue, usePendingScans } from '@/features/aluno/checkin-queue'
 import { useOnline } from '@/features/aluno/use-online'
@@ -42,11 +44,18 @@ export function ProfessorLayout() {
           <Logomark className="size-8" />
           <span className="text-xs font-medium text-muted-foreground">Professor</span>
         </div>
-        {!online && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
-            <WifiOffIcon className="size-3.5" /> Offline
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {!online && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">
+              <WifiOffIcon className="size-3.5" /> Offline
+            </span>
+          )}
+          <Button variant="ghost" size="icon-sm" asChild aria-label="Mensagens">
+            <NavLink to="/professor/mensagens">
+              <MessagesSquareIcon className="size-5" />
+            </NavLink>
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 px-4 py-5 pb-28">
