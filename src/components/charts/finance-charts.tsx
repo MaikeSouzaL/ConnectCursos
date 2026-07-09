@@ -103,7 +103,7 @@ export function CompositionDonut({ data }: { data: DonutSlice[] }) {
   const visible = data.filter((d) => d.value > 0)
 
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row">
+    <div className="flex min-w-0 flex-col items-center gap-4 sm:flex-row">
       <div className="relative h-[180px] w-[180px] shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -128,12 +128,12 @@ export function CompositionDonut({ data }: { data: DonutSlice[] }) {
           <span className="font-display text-lg font-semibold tabular">{formatBRL(total)}</span>
         </div>
       </div>
-      <ul className="flex-1 space-y-2">
+      <ul className="w-full min-w-0 flex-1 space-y-2">
         {data.map((d) => (
           <li key={d.name} className="flex items-center gap-2 text-sm">
-            <span className="size-2.5 rounded-full" style={{ backgroundColor: d.color }} />
-            <span className="text-muted-foreground">{d.name}</span>
-            <span className="ml-auto font-medium tabular">{formatBRL(d.value)}</span>
+            <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: d.color }} />
+            <span className="min-w-0 truncate text-muted-foreground">{d.name}</span>
+            <span className="ml-auto shrink-0 font-medium tabular">{formatBRL(d.value)}</span>
           </li>
         ))}
       </ul>

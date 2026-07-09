@@ -120,7 +120,7 @@ export function NewStudentDialog({
   return (
     <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : finish())}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
+      <DialogContent>
         {credentials ? (
           <CredentialsSuccess
             name={credentials.name}
