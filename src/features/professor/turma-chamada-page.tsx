@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeftIcon, CheckCircle2Icon, UsersIcon } from 'lucide-react'
+import { ArrowLeftIcon, LogInIcon, LogOutIcon, UsersIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -34,18 +34,32 @@ export function ProfessorChamadaPage() {
     return st === 'presente' || st === 'atrasado'
   }).length
 
-  const mark = async (studentId: string) => {
-    await attendanceService.checkIn({
-      personId: studentId,
-      personRole: 'aluno',
-      classId: id,
-      date,
-      checkInAt: new Date().toISOString(),
-      method: 'manual',
-      status: 'presente',
-    })
-    toast.success('Presença registrada')
-    setReload((r) => r + 1)
+  const marcarEntrada = async (studentId: string) => {
+    try {
+      await attendanceService.checkIn({
+        personId: studentId,
+        personRole: 'aluno',
+        classId: id,
+        date,
+        checkInAt: new Date().toISOString(),
+        method: 'manual',
+        status: 'presente',
+      })
+      toast.success('Entrada registrada')
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível registrar', { description: (e as Error).message })
+    }
+  }
+
+  const marcarSaida = async (recordId: string) => {
+    try {
+      await attendanceService.markCheckOut(recordId)
+      toast.success('Saída registrada')
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível registrar', { description: (e as Error).message })
+    }
   }
 
   if (loading) return <Skeleton className="h-64 w-full rounded-2xl" />
@@ -88,22 +102,33 @@ export function ProfessorChamadaPage() {
             return (
               <Card key={s.id}>
                 <CardContent className="flex items-center gap-3 py-3">
-                  <Avatar className="size-9">
+                  <Avatar className="size-9 shrink-0">
                     {s.avatarUrl && <AvatarImage src={s.avatarUrl} alt={s.name} className="object-cover" />}
                     <AvatarFallback className="text-xs">{initials(s.name)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{s.name}</p>
                     {rec?.checkInAt && (
-                      <p className="text-xs text-muted-foreground">Entrada {formatTime(rec.checkInAt)}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        Entrada {formatTime(rec.checkInAt)}
+                        {rec.checkOutAt && ` · Saída ${formatTime(rec.checkOutAt)}`}
+                      </p>
                     )}
                   </div>
-                  {rec ? (
-                    <StatusBadge kind="attendance" value={rec.status} />
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => mark(s.id)}>
-                      <CheckCircle2Icon className="size-4" /> Presente
+                  {/* Sem registro → entrada. Dentro → saída. Completo → só o status. */}
+                  {!rec ? (
+                    <Button size="sm" variant="outline" className="shrink-0" onClick={() => marcarEntrada(s.id)}>
+                      <LogInIcon className="size-4" /> Entrada
                     </Button>
+                  ) : !rec.checkOutAt ? (
+                    <div className="flex shrink-0 items-center gap-2">
+                      <StatusBadge kind="attendance" value={rec.status} />
+                      <Button size="sm" variant="outline" onClick={() => marcarSaida(rec.id)}>
+                        <LogOutIcon className="size-4" /> Saída
+                      </Button>
+                    </div>
+                  ) : (
+                    <StatusBadge kind="attendance" value={rec.status} />
                   )}
                 </CardContent>
               </Card>

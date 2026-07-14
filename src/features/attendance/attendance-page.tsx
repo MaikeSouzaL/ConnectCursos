@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import {
-  CheckCircle2Icon,
   ClipboardCheckIcon,
   DoorOpenIcon,
   Loader2Icon,
@@ -173,18 +172,32 @@ function RollCallTab() {
     return st === 'presente' || st === 'atrasado'
   }).length
 
-  const mark = async (studentId: string) => {
-    await attendanceService.checkIn({
-      personId: studentId,
-      personRole: 'aluno',
-      classId: chosen,
-      date,
-      checkInAt: new Date().toISOString(),
-      method: 'manual',
-      status: 'presente',
-    })
-    toast.success('Presença registrada')
-    setReload((r) => r + 1)
+  const marcarEntrada = async (studentId: string) => {
+    try {
+      await attendanceService.checkIn({
+        personId: studentId,
+        personRole: 'aluno',
+        classId: chosen,
+        date,
+        checkInAt: new Date().toISOString(),
+        method: 'manual',
+        status: 'presente',
+      })
+      toast.success('Entrada registrada')
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível registrar', { description: (e as Error).message })
+    }
+  }
+
+  const marcarSaida = async (recordId: string) => {
+    try {
+      await attendanceService.markCheckOut(recordId)
+      toast.success('Saída registrada')
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível registrar', { description: (e as Error).message })
+    }
   }
 
   return (
@@ -229,6 +242,7 @@ function RollCallTab() {
               <TableRow className="hover:bg-transparent">
                 <TableHead>Aluno</TableHead>
                 <TableHead>Entrada</TableHead>
+                <TableHead>Saída</TableHead>
                 <TableHead>Situação</TableHead>
                 <TableHead className="text-right">Ação</TableHead>
               </TableRow>
@@ -250,6 +264,9 @@ function RollCallTab() {
                     <TableCell className="tabular text-muted-foreground">
                       {rec?.checkInAt ? formatTime(rec.checkInAt) : '—'}
                     </TableCell>
+                    <TableCell className="tabular text-muted-foreground">
+                      {rec?.checkOutAt ? formatTime(rec.checkOutAt) : '—'}
+                    </TableCell>
                     <TableCell>
                       {rec ? (
                         <StatusBadge kind="attendance" value={rec.status} />
@@ -258,12 +275,18 @@ function RollCallTab() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {!rec && (
-                        <Button size="sm" variant="outline" onClick={() => mark(s.id)}>
-                          <CheckCircle2Icon className="size-4" />
-                          Presente
+                      {/* Sem registro → entrada. Dentro → saída. Completo → nada a fazer. */}
+                      {!rec ? (
+                        <Button size="sm" variant="outline" onClick={() => marcarEntrada(s.id)}>
+                          <LogInIcon className="size-4" />
+                          Entrada
                         </Button>
-                      )}
+                      ) : !rec.checkOutAt ? (
+                        <Button size="sm" variant="outline" onClick={() => marcarSaida(rec.id)}>
+                          <LogOutIcon className="size-4" />
+                          Saída
+                        </Button>
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 )

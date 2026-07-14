@@ -984,6 +984,20 @@ export const attendanceService = {
     if (error || !data) throw new Error(error?.message ?? 'Falha ao registrar presença')
     return mapAttendance(data)
   },
+  /**
+   * Marca a saída de um registro já existente — a 3ª via, para quando o aluno
+   * esquece de escanear. Vale para o admin e para o professor da turma.
+   */
+  async markCheckOut(recordId: string, at: string = new Date().toISOString()): Promise<AttendanceRecord> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .update({ check_out_at: at })
+      .eq('id', recordId)
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao registrar a saída')
+    return mapAttendance(data)
+  },
   async todayStatus(personId: string, role: 'aluno' | 'professor' = 'aluno'): Promise<TodayStatus> {
     const date = ymd(new Date())
     const { data } = await supabase
