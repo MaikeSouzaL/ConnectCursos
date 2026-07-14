@@ -17,6 +17,7 @@ import type {
   Invoice,
   Message,
   Payment,
+  PaymentStatus,
   Role,
   RevenueSeriesPoint,
   Room,
@@ -1049,6 +1050,27 @@ export const preferencesService = {
 // Presença, financeiro, dashboard, chat (com Realtime) e notas fiscais — Supabase.
 // ═══════════════════════════════════════════════════════════════════════════
 
+/**
+ * 'atrasado' não é um estado que alguém grava: é 'pendente' cujo vencimento
+ * passou.
+ *
+ * Nada no sistema jamais escreveu 'atrasado' em payments — os únicos writes de
+ * status são 'pago' (markPaid) e 'pendente' (generateMonthlyFees). O KPI de
+ * inadimplência do painel lia esse status e por isso marcava R$ 0,00 com o
+ * aluno devendo há semanas. Mesma família da falta que nunca era gravada.
+ *
+ * Derivado, e não uma rotina diária que vira o status: assim o número se
+ * mantém certo sozinho, sem job para falhar, atrasar, ou não rodar com o banco
+ * do plano free hibernado. Não há verdade independente a guardar.
+ *
+ * A data é lida a cada chamada, de propósito: o terminal do balcão fica aberto
+ * dias seguidos, e a constante TODAY do módulo congela no dia em que a página
+ * carregou.
+ */
+export function statusDePagamento(status: PaymentStatus, dueDate: string): PaymentStatus {
+  return status === 'pendente' && dueDate < ymd(new Date()) ? 'atrasado' : status
+}
+
 function mapPayment(r: Tables['payments']['Row']): Payment {
   return {
     id: r.id,
@@ -1058,7 +1080,7 @@ function mapPayment(r: Tables['payments']['Row']): Payment {
     amount: num(r.amount),
     dueDate: r.due_date,
     paidAt: r.paid_at ?? undefined,
-    status: r.status,
+    status: statusDePagamento(r.status, r.due_date),
     method: r.method ?? undefined,
     referenceMonth: r.reference_month,
     category: r.category ?? undefined,
@@ -1345,7 +1367,15 @@ export const financeService = {
   async list(filters: PaymentFilters = {}): Promise<Payment[]> {
     let q = supabase.from('payments').select('*')
     if (filters.kind && filters.kind !== 'todos') q = q.eq('kind', filters.kind)
-    if (filters.status && filters.status !== 'todos') q = q.eq('status', filters.status)
+    if (filters.status && filters.status !== 'todos') {
+      // O banco só conhece 'pendente'; atrasado x em dia é a data de
+      // vencimento (ver statusDePagamento). A tradução fica aqui para o filtro
+      // continuar rodando no servidor, sem trazer a tabela inteira.
+      const hoje = ymd(new Date())
+      if (filters.status === 'atrasado') q = q.eq('status', 'pendente').lt('due_date', hoje)
+      else if (filters.status === 'pendente') q = q.eq('status', 'pendente').gte('due_date', hoje)
+      else q = q.eq('status', filters.status)
+    }
     if (filters.month) q = q.eq('reference_month', filters.month)
     const { data } = await q.order('due_date', { ascending: false })
     return (data ?? []).map(mapPayment)
@@ -1797,7 +1827,8 @@ export const dashboardService = {
     const [students, attendance, payments, bookings, classes, teachers, rooms] = await Promise.all([
       supabase.from('students').select('status'),
       supabase.from('attendance').select('date, person_role, status'),
-      supabase.from('payments').select('kind, status, amount, reference_month'),
+      // due_date entra porque atrasado x em dia sai dela, não do status.
+      supabase.from('payments').select('kind, status, amount, reference_month, due_date'),
       supabase.from('room_bookings').select('date, start_time, end_time'),
       supabase.from('classes').select('status'),
       supabase.from('teachers').select('status'),
@@ -1814,7 +1845,10 @@ export const dashboardService = {
     const presenceTodayRate = dayRecs.length ? Math.round((present / dayRecs.length) * 100) : 0
 
     const prows = payments.data ?? []
-    const overdueList = prows.filter((p) => p.kind === 'mensalidade' && p.status === 'atrasado')
+    // Linha crua do banco: não passou pelo mapPayment, então deriva aqui também.
+    const overdueList = prows.filter(
+      (p) => p.kind === 'mensalidade' && statusDePagamento(p.status, p.due_date) === 'atrasado',
+    )
     const monthly = prows.filter((p) => p.reference_month === THIS_MONTH)
     const monthlyRevenue = sum(
       monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => num(p.amount)),
@@ -1891,8 +1925,19 @@ export const dashboardService = {
     const seteDiasAtras = new Date(TODAY)
     seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
 
-    const [students, teachers, bookings, faltas] = await Promise.all([
-      supabase.from('students').select('id, name').eq('status', 'inadimplente').limit(4),
+    const [atrasadas, teachers, bookings, faltas] = await Promise.all([
+      // Vinha de students.status = 'inadimplente', que é marcado À MÃO no
+      // cadastro: o aviso só saía se alguém já soubesse do atraso e lembrasse
+      // de anotar — e a preferência promete "avisar quando um aluno ficar em
+      // atraso". Agora nasce da mensalidade vencida, a mesma fonte do KPI.
+      supabase
+        .from('payments')
+        .select('id, person_id, reference_month, due_date')
+        .eq('kind', 'mensalidade')
+        .eq('status', 'pendente')
+        .lt('due_date', ymd(new Date()))
+        .order('due_date')
+        .limit(4),
       supabase.from('teachers').select('id, name').eq('rent_status', 'atrasado').limit(2),
       supabase.from('room_bookings').select('id, title, room_id').eq('status', 'pendente').limit(2),
       supabase
@@ -1914,14 +1959,16 @@ export const dashboardService = {
         at: f.date,
       })
     })
-    ;(students.data ?? []).forEach((s) => {
+    ;(atrasadas.data ?? []).forEach((p) => {
       alerts.push({
-        id: `al_${s.id}`,
+        id: `al_${p.id}`,
         kind: 'inadimplencia',
         severity: 'danger',
         title: 'Mensalidade em atraso',
-        description: `${s.name} está com a mensalidade de ${THIS_MONTH} atrasada.`,
-        at: new Date().toISOString(),
+        // Diz o mês que está atrasado de verdade — o texto antigo afirmava o
+        // mês corrente mesmo quando a dívida era de meses atrás.
+        description: `${studentName(p.person_id ?? '')} está com a mensalidade de ${p.reference_month} atrasada desde ${diaMes(p.due_date)}.`,
+        at: p.due_date,
       })
     })
     ;(teachers.data ?? []).forEach((t) => {

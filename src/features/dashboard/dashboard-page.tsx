@@ -131,7 +131,7 @@ export function DashboardPage() {
               label="Inadimplência"
               value={formatBRL(kpis.overdueAmount)}
               icon={TriangleAlertIcon}
-              hint={`${kpis.overdueCount} alunos em atraso`}
+              hint={`${kpis.overdueCount} ${kpis.overdueCount === 1 ? 'aluno' : 'alunos'} em atraso`}
               accent="red"
               goodDirection="down"
             />
