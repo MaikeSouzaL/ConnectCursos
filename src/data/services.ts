@@ -1494,6 +1494,31 @@ export const financeService = {
    * O saldo parte do saldo inicial cadastrado nas Configurações (o dinheiro que
    * a instituição já tinha), salvo se um valor for passado explicitamente.
    */
+  /**
+   * RBT12 — receita bruta dos 12 meses ANTERIORES ao mês de apuração. É ela que
+   * define a faixa do Simples, e por isso precisa ser exatamente essa janela.
+   *
+   * A tela de impostos somava o fluxo de caixa, que é do ano-calendário
+   * (jan → mês atual) e chamava isso de "base 12m": em março a base tinha 3
+   * meses. Como a faixa sai do RBT12, a escola caía numa faixa mais baixa que a
+   * real e o DAS estimado saía sistematicamente ABAIXO do devido — para uma
+   * escola de R$ 30 mil/mês, 30% a menos de janeiro a junho.
+   *
+   * Regime de caixa (só 'pago'), como o resto do módulo. O regime — caixa ou
+   * competência — é uma opção da empresa: confirmar com o contador.
+   */
+  async rbt12(ref: Date = new Date()): Promise<number> {
+    const inicio = new Date(ref.getFullYear(), ref.getMonth() - 12, 1)
+    const fim = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
+    const { data } = await supabase
+      .from('payments')
+      .select('amount, kind, status, reference_month')
+      .neq('kind', 'despesa')
+      .eq('status', 'pago')
+      .gte('reference_month', ym(inicio))
+      .lte('reference_month', ym(fim))
+    return sum((data ?? []).map((p) => num(p.amount)))
+  },
   async cashFlow(openingBalance?: number): Promise<CashFlowPoint[]> {
     const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     const year = TODAY.getFullYear()

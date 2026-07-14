@@ -25,33 +25,40 @@ import { formatBRL, formatPercent } from '@/lib/format'
 import { simplesAnexoIII, TAX_OBLIGATIONS } from '@/lib/tax'
 
 export function TaxesSection() {
-  const { data: flow, loading } = useAsync(() => financeService.cashFlow())
+  const { data, loading } = useAsync(async () => {
+    const [flow, rbt12] = await Promise.all([financeService.cashFlow(), financeService.rbt12()])
+    return { flow, rbt12 }
+  })
 
   const tax = useMemo(() => {
-    const realized = (flow ?? []).filter((f) => f.realizado)
-    const rbt12 = realized.reduce((s, f) => s + f.entradas, 0)
+    // O RBT12 vem do serviço (12 meses anteriores). Somar o fluxo de caixa aqui
+    // dava o acumulado do ANO — em março, uma "base 12m" de 3 meses, que jogava
+    // a escola numa faixa mais baixa e subestimava o DAS.
+    const rbt12 = data?.rbt12 ?? 0
+    const realized = (data?.flow ?? []).filter((f) => f.realizado)
     const monthRevenue = realized.length ? realized[realized.length - 1].entradas : 0
     const s = simplesAnexoIII(rbt12)
     return {
       rbt12,
       monthRevenue,
       monthDAS: monthRevenue * s.effectiveRate,
-      annualDAS: rbt12 * s.effectiveRate,
+      das12m: rbt12 * s.effectiveRate,
       ...s,
     }
-  }, [flow])
+  }, [data])
 
-  if (loading || !flow) {
+  if (loading || !data) {
     return <Skeleton className="h-96 w-full rounded-xl" />
   }
 
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Receita bruta (base 12m)" value={formatBRL(tax.rbt12)} icon={TrendingUpIcon} accent="gold" />
+        <StatCard label="RBT12 (12 meses anteriores)" value={formatBRL(tax.rbt12)} icon={TrendingUpIcon} accent="gold" />
         <StatCard label="Alíquota efetiva" value={formatPercent(tax.effectiveRate * 100, 2)} icon={PercentIcon} accent="info" />
         <StatCard label="DAS do mês (est.)" value={formatBRL(tax.monthDAS)} icon={ReceiptTextIcon} accent="red" goodDirection="down" />
-        <StatCard label="DAS no ano (est.)" value={formatBRL(tax.annualDAS)} icon={LandmarkIcon} accent="red" goodDirection="down" />
+        {/* Sobre o RBT12, não sobre o ano-calendário: dizer "no ano" seria outro rótulo mentindo. */}
+        <StatCard label="DAS sobre o RBT12 (est.)" value={formatBRL(tax.das12m)} icon={LandmarkIcon} accent="red" goodDirection="down" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
