@@ -117,7 +117,7 @@ export function RoomsPage() {
 
       <div className="grid gap-4 lg:grid-cols-4">
         {/* Calendário */}
-        <Card className="lg:col-span-3">
+        <Card className="min-w-0 lg:col-span-3">
           <CardHeader className="gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-1">
