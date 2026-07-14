@@ -91,7 +91,9 @@ export function SortableHead({
       <button
         onClick={() => onToggle(sortKey)}
         className={cn(
-          'group inline-flex items-center gap-1 transition-colors hover:text-foreground',
+          // py/-my: cresce a área de toque até a altura da célula sem mexer no
+          // layout — só com o texto o alvo ficava com 16px, difícil no dedo.
+          'group -my-3 inline-flex items-center gap-1 py-3 transition-colors hover:text-foreground',
           active && 'text-foreground',
         )}
         aria-label={`Ordenar por ${label}`}

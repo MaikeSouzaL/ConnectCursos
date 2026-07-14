@@ -220,6 +220,8 @@ export function MessagesPage() {
                 size="sm"
                 className="ml-auto shrink-0 text-muted-foreground"
                 onClick={() => setShowMembers((v) => !v)}
+                aria-label={showMembers ? 'Fechar lista de alunos' : 'Ver alunos da turma'}
+                aria-expanded={showMembers}
               >
                 <UsersIcon className="size-4" />
                 {current?.memberCount ?? 0}
