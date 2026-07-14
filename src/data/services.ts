@@ -4,7 +4,6 @@
  * dashboard, chat e notas fiscais ainda usam o mock local até seus blocos (B5/B6).
  */
 import { supabase } from '@/lib/supabase'
-import { clone, db, delay } from './db'
 import type { Database } from './database.types'
 import type {
   AttendanceRecord,
@@ -153,19 +152,19 @@ export async function preloadLookups(): Promise<void> {
 }
 
 export function courseName(id: string) {
-  return coursesCache.get(id)?.name ?? db.courses.find((c) => c.id === id)?.name ?? '—'
+  return coursesCache.get(id)?.name ?? '—'
 }
 export function teacherName(id: string) {
-  return teachersCache.get(id)?.name ?? db.teachers.find((t) => t.id === id)?.name ?? '—'
+  return teachersCache.get(id)?.name ?? '—'
 }
 export function roomName(id: string) {
-  return roomsCache.get(id)?.name ?? db.rooms.find((r) => r.id === id)?.name ?? '—'
+  return roomsCache.get(id)?.name ?? '—'
 }
 export function studentName(id: string) {
-  return studentsCache.get(id)?.name ?? db.students.find((s) => s.id === id)?.name ?? '—'
+  return studentsCache.get(id)?.name ?? '—'
 }
 export function className(id: string) {
-  return classesCache.get(id)?.name ?? db.classes.find((c) => c.id === id)?.name ?? '—'
+  return classesCache.get(id)?.name ?? '—'
 }
 
 /** Mensagem de erro do corpo de uma Edge Function. */
@@ -663,8 +662,7 @@ export const roomsService = {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Presença, financeiro e dashboard já no Supabase. Chat e notas fiscais
-// seguem em mock até o B6.
+// Presença, financeiro, dashboard, chat (com Realtime) e notas fiscais — Supabase.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function mapPayment(r: Tables['payments']['Row']): Payment {
@@ -973,7 +971,7 @@ export const financeService = {
   },
 }
 
-// ————————————————————————————————————— Comunicação (chat) — mock
+// ————————————————————————————————————— Comunicação (chat) — Supabase + Realtime
 export interface ChatChannel {
   id: string
   name: string
@@ -983,96 +981,169 @@ export interface ChatChannel {
   lastMessageAt?: string
 }
 
-function channelMembers(channelId: string): Student[] {
-  if (channelId === 'geral') {
-    return db.students.filter((s) => s.status !== 'concluido')
+function mapMessage(r: Tables['messages']['Row']): Message {
+  return {
+    id: r.id,
+    channelId: r.channel_id,
+    authorId: r.author_id ?? '',
+    authorName: r.author_name,
+    authorRole: r.author_role,
+    content: r.content,
+    at: r.created_at,
   }
-  const cls = db.classes.find((c) => c.id === channelId)
-  if (!cls) return []
-  return db.students.filter((s) => cls.studentIds.includes(s.id))
 }
 
-function buildChannels(): ChatChannel[] {
+/** Monta a lista de canais: Geral + turmas em andamento, com contagem de membros. */
+async function buildChannels(): Promise<ChatChannel[]> {
+  const [{ data: classes }, { data: links }, { data: msgs }, geral] = await Promise.all([
+    supabase.from('classes').select('id, name, course_id').neq('status', 'concluida').order('name'),
+    supabase.from('class_students').select('class_id'),
+    supabase.from('messages').select('channel_id, created_at'),
+    supabase.from('students').select('id', { count: 'exact', head: true }).neq('status', 'concluido'),
+  ])
+  const countByClass = new Map<string, number>()
+  ;(links ?? []).forEach((l) => countByClass.set(l.class_id, (countByClass.get(l.class_id) ?? 0) + 1))
   const lastAt = (id: string) =>
-    db.messages.filter((m) => m.channelId === id).sort((a, b) => b.at.localeCompare(a.at))[0]?.at
-  const geral: ChatChannel = {
+    (msgs ?? [])
+      .filter((m) => m.channel_id === id)
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.created_at
+  const geralChannel: ChatChannel = {
     id: 'geral',
     name: 'Geral',
     kind: 'geral',
-    memberCount: channelMembers('geral').length,
+    memberCount: geral.count ?? 0,
     lastMessageAt: lastAt('geral'),
   }
-  const turmas: ChatChannel[] = db.classes
-    .filter((c) => c.status !== 'concluida')
-    .map((c) => ({
-      id: c.id,
-      name: c.name,
-      kind: 'turma' as const,
-      courseName: courseName(c.courseId),
-      memberCount: c.studentIds.length,
-      lastMessageAt: lastAt(c.id),
-    }))
-  return [geral, ...turmas]
+  const turmas: ChatChannel[] = (classes ?? []).map((c) => ({
+    id: c.id,
+    name: c.name,
+    kind: 'turma' as const,
+    courseName: courseName(c.course_id ?? ''),
+    memberCount: countByClass.get(c.id) ?? 0,
+    lastMessageAt: lastAt(c.id),
+  }))
+  return [geralChannel, ...turmas]
 }
 
 export const messagesService = {
   async channels(): Promise<ChatChannel[]> {
-    return delay(clone(buildChannels()))
+    return buildChannels()
   },
   async channelsFor(role: Role, linkedId?: string): Promise<ChatChannel[]> {
-    const all = buildChannels()
-    if (role === 'admin') return delay(clone(all))
+    const all = await buildChannels()
+    if (role === 'admin') return all
     if (role === 'aluno') {
-      const student = db.students.find((s) => s.id === linkedId)
-      const ids = new Set(student?.classIds ?? [])
-      return delay(clone(all.filter((c) => c.id === 'geral' || ids.has(c.id))))
+      const { data: links } = await supabase
+        .from('class_students')
+        .select('class_id')
+        .eq('student_id', linkedId ?? '')
+      const ids = new Set((links ?? []).map((l) => l.class_id))
+      return all.filter((c) => c.id === 'geral' || ids.has(c.id))
     }
-    const teaching = new Set(db.classes.filter((c) => c.teacherId === linkedId).map((c) => c.id))
-    return delay(clone(all.filter((c) => c.id === 'geral' || teaching.has(c.id))))
+    const { data: classes } = await supabase.from('classes').select('id').eq('teacher_id', linkedId ?? '')
+    const ids = new Set((classes ?? []).map((c) => c.id))
+    return all.filter((c) => c.id === 'geral' || ids.has(c.id))
   },
   async list(channelId: string): Promise<Message[]> {
-    const out = db.messages
-      .filter((m) => m.channelId === channelId)
-      .sort((a, b) => a.at.localeCompare(b.at))
-    return delay(clone(out))
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('channel_id', channelId)
+      .order('created_at')
+    return (data ?? []).map(mapMessage)
   },
   async members(channelId: string): Promise<Student[]> {
-    return delay(clone(channelMembers(channelId)))
+    if (channelId === 'geral') {
+      const { data } = await supabase.from('students').select('*').neq('status', 'concluido').order('name')
+      return (data ?? []).map((r) => mapStudent(r))
+    }
+    const { data: links } = await supabase
+      .from('class_students')
+      .select('student_id')
+      .eq('class_id', channelId)
+    const ids = (links ?? []).map((l) => l.student_id)
+    if (!ids.length) return []
+    const { data } = await supabase.from('students').select('*').in('id', ids).order('name')
+    return (data ?? []).map((r) => mapStudent(r))
   },
   async send(
     channelId: string,
     author: { id: string; name: string; role: Role },
     content: string,
   ): Promise<Message> {
-    const msg: Message = {
-      id: `msg_${pad(db.messages.length + 1)}`,
-      channelId,
-      authorId: author.id,
-      authorName: author.name,
-      authorRole: author.role,
-      content: content.trim(),
-      at: new Date().toISOString(),
+    const { data, error } = await supabase
+      .from('messages')
+      .insert({
+        channel_id: channelId,
+        author_id: author.id,
+        author_name: author.name,
+        author_role: author.role,
+        content: content.trim(),
+      })
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao enviar mensagem')
+    return mapMessage(data)
+  },
+  /** Assina novas mensagens de um canal em tempo real. Retorna a função de cancelamento. */
+  subscribe(channelId: string, onMessage: (m: Message) => void): () => void {
+    const channel = supabase
+      .channel(`messages:${channelId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'messages', filter: `channel_id=eq.${channelId}` },
+        (payload) => onMessage(mapMessage(payload.new as Tables['messages']['Row'])),
+      )
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
     }
-    db.messages.push(msg)
-    return delay(clone(msg))
   },
 }
 
-// ————————————————————————————————————— Notas fiscais (mock)
+// ————————————————————————————————————— Notas fiscais (Supabase)
+function mapInvoice(r: Tables['invoices']['Row']): Invoice {
+  return {
+    id: r.id,
+    number: r.number,
+    customer: r.customer,
+    description: r.description,
+    amount: num(r.amount),
+    date: r.date,
+    status: r.status,
+  }
+}
 export const invoicesService = {
   async list(): Promise<Invoice[]> {
-    return delay(clone([...db.invoices].sort((a, b) => b.number.localeCompare(a.number))))
+    const { data } = await supabase.from('invoices').select('*').order('number', { ascending: false })
+    return (data ?? []).map(mapInvoice)
   },
   async create(data: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<Invoice> {
-    const nextNum = String(1200 + db.invoices.length + 1).padStart(6, '0')
-    const invoice: Invoice = { ...data, id: `nf_${pad(db.invoices.length + 1)}`, number: nextNum, status: 'emitida' }
-    db.invoices.push(invoice)
-    return delay(clone(invoice))
+    const { count } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
+    const nextNum = String(1200 + (count ?? 0) + 1).padStart(6, '0')
+    const { data: row, error } = await supabase
+      .from('invoices')
+      .insert({
+        number: nextNum,
+        customer: data.customer,
+        description: data.description,
+        amount: data.amount,
+        date: data.date,
+        status: 'emitida',
+      })
+      .select()
+      .single()
+    if (error || !row) throw new Error(error?.message ?? 'Falha ao emitir nota')
+    return mapInvoice(row)
   },
   async cancel(id: string): Promise<Invoice | undefined> {
-    const nf = db.invoices.find((x) => x.id === id)
-    if (nf) nf.status = 'cancelada'
-    return delay(clone(nf))
+    const { data } = await supabase
+      .from('invoices')
+      .update({ status: 'cancelada' })
+      .eq('id', id)
+      .select()
+      .single()
+    return data ? mapInvoice(data) : undefined
   },
 }
 

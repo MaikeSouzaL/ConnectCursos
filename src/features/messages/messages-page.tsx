@@ -43,6 +43,11 @@ export function MessagesPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
   }, [messages])
 
+  // Tempo real: novas mensagens no canal aberto recarregam a conversa.
+  useEffect(() => {
+    return messagesService.subscribe(selected, () => setReload((r) => r + 1))
+  }, [selected])
+
   const send = async () => {
     const content = text.trim()
     if (!content || !user) return
