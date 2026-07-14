@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BuildingIcon, MonitorIcon, MoonIcon, SunIcon, UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { ImageUploadButton } from '@/components/shared/image-upload'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -14,7 +15,7 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Logomark } from '@/components/brand/Logo'
 import { useAsync } from '@/hooks/use-async'
-import { institutionService, preferencesService, type Institution } from '@/data/services'
+import { avatarService, institutionService, preferencesService, type Institution } from '@/data/services'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
 import { useTheme, type Theme } from '@/hooks/use-theme'
 import { maskCNPJ, maskPhone } from '@/lib/masks'
@@ -30,6 +31,7 @@ function Field({ id, label, ...props }: { id: string; label: string } & React.Co
 }
 
 function InstitutionTab() {
+  const userId = useAuth((s) => s.user?.id)
   const { data, loading } = useAsync(() => institutionService.get(), [])
   const [form, setForm] = useState<Institution | null>(null)
   const [saving, setSaving] = useState(false)
@@ -41,6 +43,27 @@ function InstitutionTab() {
   if (loading || !form) return <Skeleton className="h-96 w-full rounded-xl" />
 
   const set = (patch: Partial<Institution>) => setForm((f) => (f ? { ...f, ...patch } : f))
+
+  const enviarLogo = async (file: File) => {
+    if (!userId) return
+    try {
+      const atualizado = await institutionService.uploadLogo(userId, file)
+      set({ logoUrl: atualizado.logoUrl })
+      toast.success('Logo atualizada', { description: 'Ela já aparece no QR impresso do balcão.' })
+    } catch (err) {
+      toast.error('Não foi possível enviar a logo', { description: (err as Error).message })
+    }
+  }
+
+  const removerLogo = async () => {
+    try {
+      await institutionService.removeLogo()
+      set({ logoUrl: null })
+      toast.success('Logo removida', { description: 'Voltamos para a logo padrão da Conect.' })
+    } catch (err) {
+      toast.error('Não foi possível remover', { description: (err as Error).message })
+    }
+  }
 
   const save = async () => {
     if (!form.name.trim()) {
@@ -65,13 +88,27 @@ function InstitutionTab() {
         <p className="text-sm text-muted-foreground">Informações exibidas em recibos e relatórios.</p>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex items-center gap-4">
-          <div className="flex size-16 items-center justify-center rounded-2xl bg-brand-black ring-1 ring-border">
-            <Logomark className="size-11" />
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-brand-black ring-1 ring-border">
+            {form.logoUrl ? (
+              <img src={form.logoUrl} alt="Logo da instituição" className="size-full object-contain p-1" />
+            ) : (
+              <Logomark className="size-11" />
+            )}
           </div>
-          <div>
-            <p className="font-display font-semibold">{form.name || 'Conect Cursos'}</p>
-            <p className="text-sm text-muted-foreground">Conectada ao seu futuro</p>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display font-semibold">{form.name || 'Conect Cursos'}</p>
+            <p className="text-sm text-muted-foreground">
+              {form.logoUrl ? 'Logo própria — aparece no QR impresso.' : 'Usando a logo padrão da Conect.'}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <ImageUploadButton label="Trocar logo" onPick={enviarLogo} />
+            {form.logoUrl && (
+              <Button type="button" variant="ghost" size="sm" onClick={removerLogo}>
+                Remover
+              </Button>
+            )}
           </div>
         </div>
         <Separator />
@@ -252,13 +289,26 @@ function NotificationsTab() {
 }
 
 function AccountTab() {
-  const { user, updateProfile, changePassword } = useAuth()
+  const { user, updateProfile, changePassword, setAvatar } = useAuth()
   const [name, setName] = useState(user?.name ?? '')
   const [savingProfile, setSavingProfile] = useState(false)
   const [pass, setPass] = useState('')
   const [confirm, setConfirm] = useState('')
   const [savingPass, setSavingPass] = useState(false)
   if (!user) return null
+
+  const enviarFoto = async (file: File) => {
+    if (!user) return
+    try {
+      // Mesmo caminho da selfie do professor/aluno; o admin não tem cadastro
+      // vinculado, então só o perfil é atualizado.
+      const url = await avatarService.uploadSelfie(user.id, file, user.role, user.linkedId)
+      setAvatar(url)
+      toast.success('Foto atualizada')
+    } catch (err) {
+      toast.error('Não foi possível enviar a foto', { description: (err as Error).message })
+    }
+  }
 
   const saveProfile = async () => {
     if (name.trim().length < 3) {
@@ -300,20 +350,21 @@ function AccountTab() {
           <CardTitle>Perfil</CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <PersonAvatar
               name={user.name}
               src={user.avatarUrl}
-              className="size-16 text-lg"
+              className="size-16 shrink-0 text-lg"
               fallbackClassName="bg-primary/15 text-primary"
             />
-            <div>
-              <p className="font-display font-semibold">{user.name}</p>
-              <p className="text-sm text-muted-foreground">{user.email}</p>
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-display font-semibold">{user.name}</p>
+              <p className="truncate text-sm text-muted-foreground">{user.email}</p>
               <Badge variant="gold" className="mt-1.5">
                 {roleLabel[user.role]}
               </Badge>
             </div>
+            <ImageUploadButton label={user.avatarUrl ? 'Trocar foto' : 'Enviar foto'} onPick={enviarFoto} />
           </div>
           <Separator />
           <div className="grid gap-4 sm:grid-cols-2">

@@ -773,7 +773,8 @@ export interface Institution {
   address: string
   /** Dinheiro já em caixa/banco quando o sistema começou a ser usado. */
   openingBalance: number
-  logoUrl?: string
+  /** null limpa a logo e volta para a padrão; undefined não mexe. */
+  logoUrl?: string | null
 }
 function mapInstitution(r: Tables['institution']['Row'] | null): Institution {
   return {
@@ -808,6 +809,31 @@ export const institutionService = {
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Falha ao salvar os dados da instituição')
     return mapInstitution(data)
+  },
+  /**
+   * Envia a logo da instituição e guarda a URL.
+   *
+   * Vai no bucket `avatars`, na pasta do admin — é o que a policy permite
+   * (pasta = auth.uid()) e o bucket já é público, que é o certo para uma logo:
+   * ela aparece na folha impressa do balcão.
+   */
+  async uploadLogo(adminUserId: string, file: File): Promise<Institution> {
+    if (!file.type.startsWith('image/')) throw new Error('Envie um arquivo de imagem.')
+    if (file.size > MAX_IMAGEM) throw new Error('A imagem passa de 5 MB. Escolha uma menor.')
+    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'png'
+    const path = `${adminUserId}/logo.${ext}`
+    const { error } = await supabase.storage.from('avatars').upload(path, file, {
+      contentType: file.type,
+      upsert: true,
+    })
+    if (error) throw new Error(error.message)
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    // Cache-buster: sem isso o navegador seguiria mostrando a logo antiga.
+    return institutionService.update({ logoUrl: `${data.publicUrl}?v=${Date.now()}` })
+  },
+  /** Volta a usar a logo padrão da Conect. */
+  async removeLogo(): Promise<Institution> {
+    return institutionService.update({ logoUrl: null })
   },
 }
 
