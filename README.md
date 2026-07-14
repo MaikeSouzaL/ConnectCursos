@@ -49,7 +49,14 @@ cp .env.example .env   # preencha com o projeto de DEV (ver abaixo)
 npm run dev            # desenvolvimento em http://localhost:5173
 npm run build          # build de produção + PWA
 npm run preview        # pré-visualiza o build
+npm test               # testes (Vitest)
+npm run typecheck      # tsc -b
 ```
+
+> Para checar tipos use **`npm run typecheck`**, nunca `npx tsc --noEmit`: o
+> `tsconfig.json` da raiz é só um arquivo de `references`, com `"files": []`.
+> O `--noEmit` obedece e não checa **nenhum** arquivo — passa sempre, inclusive
+> com o app quebrado.
 
 O primeiro acesso de uma instalação nova cria o administrador pela própria tela
 de login; ele então cadastra professores e alunos, que recebem senha temporária
@@ -81,7 +88,15 @@ Duas travas ajudam:
 
 Toda alteração é um arquivo em `supabase/migrations/`, aplicado **primeiro no
 dev** e só depois na produção — nunca só num lado, ou os ambientes divergem e o
-deploy quebra. Para conferir se estão iguais:
+deploy quebra.
+
+> **A migration vai na frente do push.** O código pode *depender* do schema sem
+> parecer que depende: um `.upsert(..., { onConflict: 'a,b,c' })` vira um
+> `ON CONFLICT (a,b,c)`, e o Postgres exige um índice único que case com esse
+> alvo — sem ele, `42P10` em tempo de execução, que nenhum typecheck pega.
+> Subir o código antes da migration deixa a produção quebrada até ela chegar.
+
+Para conferir se estão iguais:
 
 ```sql
 -- rode nos dois; o hash tem que bater
