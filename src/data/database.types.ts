@@ -298,6 +298,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          image_path: string | null
         }
         Insert: {
           author_id?: string | null
@@ -307,6 +308,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          image_path?: string | null
         }
         Update: {
           author_id?: string | null
@@ -316,6 +318,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          image_path?: string | null
         }
         Relationships: []
       }

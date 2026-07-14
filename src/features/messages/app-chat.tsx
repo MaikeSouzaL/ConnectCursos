@@ -8,6 +8,7 @@ import {
   MessagesSquareIcon,
   SendIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAsync } from '@/hooks/use-async'
 import { messagesService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
+import { BotaoAnexo, ChatImage, PreviaAnexo, useAnexo, useChatImages } from '@/features/messages/chat-image'
 import { formatTime, initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +27,8 @@ export function AppChat() {
   const [selected, setSelected] = useState<string | null>(null)
   const [reload, setReload] = useState(0)
   const [text, setText] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const anexo = useAnexo()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const { data: channels, loading } = useAsync(
@@ -37,6 +41,7 @@ export function AppChat() {
   )
 
   const current = useMemo(() => channels?.find((c) => c.id === selected), [channels, selected])
+  const imageUrls = useChatImages(messages)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
@@ -50,10 +55,19 @@ export function AppChat() {
 
   const send = async () => {
     const content = text.trim()
-    if (!content || !user || !selected) return
-    await messagesService.send(selected, { id: user.id, name: user.name, role: user.role }, content)
-    setText('')
-    setReload((r) => r + 1)
+    if ((!content && !anexo.file) || !user || !selected || enviando) return
+    setEnviando(true)
+    try {
+      const imagePath = anexo.file ? await messagesService.uploadImage(user.id, anexo.file) : undefined
+      await messagesService.send(selected, { id: user.id, name: user.name, role: user.role }, content, imagePath)
+      setText('')
+      anexo.limpar()
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível enviar', { description: (e as Error).message })
+    } finally {
+      setEnviando(false)
+    }
   }
 
   // ——— Lista de canais ———
@@ -157,7 +171,10 @@ export function AppChat() {
                       <span className="text-[11px] text-muted-foreground">{formatTime(m.at)}</span>
                     </div>
                   )}
-                  <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{m.content}</p>
+                  {m.content && (
+                    <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{m.content}</p>
+                  )}
+                  {m.imagePath && <ChatImage path={m.imagePath} urls={imageUrls} />}
                 </div>
               </div>
             )
@@ -171,21 +188,33 @@ export function AppChat() {
       </div>
 
       <form
-        className="flex items-center gap-2 pt-3"
+        className="pt-3"
         onSubmit={(e) => {
           e.preventDefault()
-          send()
+          void send()
         }}
       >
-        <Input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Escreva uma mensagem…"
-          className="bg-secondary"
-        />
-        <Button type="submit" size="icon" disabled={!text.trim()} aria-label="Enviar">
-          <SendIcon className="size-4" />
-        </Button>
+        {anexo.preview && (
+          <PreviaAnexo preview={anexo.preview} enviando={enviando} onRemove={anexo.limpar} />
+        )}
+        <div className="flex items-center gap-2">
+          <BotaoAnexo inputRef={anexo.inputRef} onPick={anexo.setFile} disabled={enviando} />
+          <Input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="Escreva uma mensagem…"
+            className="bg-secondary"
+          />
+          <Button
+            type="submit"
+            size="icon"
+            className="shrink-0"
+            disabled={(!text.trim() && !anexo.file) || enviando}
+            aria-label="Enviar"
+          >
+            <SendIcon className="size-4" />
+          </Button>
+        </div>
       </form>
     </div>
   )

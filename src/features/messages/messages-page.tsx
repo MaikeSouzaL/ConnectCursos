@@ -9,12 +9,14 @@ import {
   UsersIcon,
   XIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/use-async'
 import { dmChannelId, messagesService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
+import { BotaoAnexo, ChatImage, PreviaAnexo, useAnexo, useChatImages } from '@/features/messages/chat-image'
 import { formatTime, initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -25,6 +27,8 @@ export function MessagesPage() {
   const [text, setText] = useState('')
   const [search, setSearch] = useState('')
   const [showMembers, setShowMembers] = useState(false)
+  const [enviando, setEnviando] = useState(false)
+  const anexo = useAnexo()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const isDm = selected.startsWith('dm:')
@@ -39,6 +43,7 @@ export function MessagesPage() {
   )
 
   const current = channels?.find((c) => c.id === selected) ?? dmInfo ?? undefined
+  const imageUrls = useChatImages(messages)
   const geral = channels?.find((c) => c.id === 'geral')
   const filterBySearch = (name: string) =>
     !search || name.toLowerCase().includes(search.toLowerCase())
@@ -69,10 +74,19 @@ export function MessagesPage() {
 
   const send = async () => {
     const content = text.trim()
-    if (!content || !user) return
-    await messagesService.send(selected, { id: user.id, name: user.name, role: user.role }, content)
-    setText('')
-    setReload((r) => r + 1)
+    if ((!content && !anexo.file) || !user || enviando) return
+    setEnviando(true)
+    try {
+      const imagePath = anexo.file ? await messagesService.uploadImage(user.id, anexo.file) : undefined
+      await messagesService.send(selected, { id: user.id, name: user.name, role: user.role }, content, imagePath)
+      setText('')
+      anexo.limpar()
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível enviar', { description: (e as Error).message })
+    } finally {
+      setEnviando(false)
+    }
   }
 
   /** Abre a conversa direta com um aluno da turma. */
@@ -242,7 +256,10 @@ export function MessagesPage() {
                               <span className="text-[11px] text-muted-foreground">{formatTime(m.at)}</span>
                             </div>
                           )}
-                          <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{m.content}</p>
+                          {m.content && (
+                            <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{m.content}</p>
+                          )}
+                          {m.imagePath && <ChatImage path={m.imagePath} urls={imageUrls} />}
                         </div>
                       </div>
                     )
@@ -259,21 +276,32 @@ export function MessagesPage() {
               </div>
               <div className="border-t border-border p-3">
                 <form
-                  className="flex items-center gap-2"
                   onSubmit={(e) => {
                     e.preventDefault()
-                    send()
+                    void send()
                   }}
                 >
-                  <Input
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder={`Mensagem para ${current?.name ?? ''}…`}
-                    className="bg-secondary"
-                  />
-                  <Button type="submit" size="icon" disabled={!text.trim()} aria-label="Enviar">
-                    <SendIcon className="size-4" />
-                  </Button>
+                  {anexo.preview && (
+                    <PreviaAnexo preview={anexo.preview} enviando={enviando} onRemove={anexo.limpar} />
+                  )}
+                  <div className="flex items-center gap-2">
+                    <BotaoAnexo inputRef={anexo.inputRef} onPick={anexo.setFile} disabled={enviando} />
+                    <Input
+                      value={text}
+                      onChange={(e) => setText(e.target.value)}
+                      placeholder={`Mensagem para ${current?.name ?? ''}…`}
+                      className="bg-secondary"
+                    />
+                    <Button
+                      type="submit"
+                      size="icon"
+                      className="shrink-0"
+                      disabled={(!text.trim() && !anexo.file) || enviando}
+                      aria-label="Enviar"
+                    >
+                      <SendIcon className="size-4" />
+                    </Button>
+                  </div>
                 </form>
               </div>
             </div>
