@@ -3,3 +3,12 @@
 
 declare module '@fontsource-variable/inter'
 declare module '@fontsource-variable/space-grotesk'
+
+interface ImportMetaEnv {
+  readonly VITE_SUPABASE_URL: string
+  readonly VITE_SUPABASE_ANON_KEY: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
