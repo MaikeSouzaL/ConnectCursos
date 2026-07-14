@@ -7,6 +7,7 @@ import {
   MessagesSquareIcon,
 } from 'lucide-react'
 import { Logo, Logomark } from '@/components/brand/Logo'
+import { EnvBadge } from '@/components/shared/env-badge'
 import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -166,6 +167,7 @@ export function AdminLayout() {
           </div>
 
           <div className="ml-auto flex items-center gap-1">
+            <EnvBadge />
             <ThemeToggle />
             <NotificationsBell />
             <Separator orientation="vertical" className="mx-1 h-6" />

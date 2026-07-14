@@ -10,6 +10,7 @@ import {
   WifiOffIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { EnvBadge } from '@/components/shared/env-badge'
 import { Logomark } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { PageLoading } from '@/components/shared/page-loading'
@@ -41,7 +42,10 @@ export function AlunoLayout() {
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background shadow-2xl sm:border-x sm:border-border">
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-border bg-background/80 px-4 py-3 backdrop-blur-md">
-        <Logomark className="size-8" />
+        <div className="flex items-center gap-2">
+          <Logomark className="size-8" />
+          <EnvBadge />
+        </div>
         <div className="flex items-center gap-2">
           {!online ? (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-2.5 py-1 text-xs font-medium text-warning">

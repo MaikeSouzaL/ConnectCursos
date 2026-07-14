@@ -10,6 +10,7 @@ import {
   WifiOffIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { EnvBadge } from '@/components/shared/env-badge'
 import { Logomark } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { PageLoading } from '@/components/shared/page-loading'
@@ -43,6 +44,7 @@ export function ProfessorLayout() {
         <div className="flex items-center gap-2">
           <Logomark className="size-8" />
           <span className="text-xs font-medium text-muted-foreground">Professor</span>
+          <EnvBadge />
         </div>
         <div className="flex items-center gap-2">
           {!online && (
