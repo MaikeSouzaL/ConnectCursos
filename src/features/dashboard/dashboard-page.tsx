@@ -141,7 +141,7 @@ export function DashboardPage() {
 
       {/* Receita + Agenda */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Receita x Despesa</CardTitle>
@@ -204,7 +204,7 @@ export function DashboardPage() {
 
       {/* Frequência + Alertas */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+        <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Frequência</CardTitle>
