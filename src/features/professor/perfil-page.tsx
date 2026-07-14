@@ -17,6 +17,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ChangePasswordCard } from '@/features/auth/change-password-card'
+import { PushCard } from '@/features/push/push-card'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, teachersService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
@@ -104,6 +105,8 @@ export function ProfessorPerfilPage() {
           <Row icon={MailIcon} label="E-mail" value={teacher.email} />
         </CardContent>
       </Card>
+
+      <PushCard />
 
       <ChangePasswordCard />
 

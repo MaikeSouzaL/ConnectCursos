@@ -882,6 +882,23 @@ export const cancellationsService = {
       .select()
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Falha ao avisar sobre a aula')
+
+    // Push: alcança quem está com o app fechado. O realtime só pega quem já
+    // está olhando a tela — e o objetivo é a pessoa não sair de casa.
+    // Falha aqui não desfaz o aviso: ele já está gravado e o realtime segue.
+    try {
+      await supabase.functions.invoke('send-push', {
+        body: {
+          class_id: classId,
+          title: 'Aula cancelada',
+          message: reason.trim() || 'O professor avisou que não poderá dar aula.',
+          url: '/aluno',
+        },
+      })
+    } catch {
+      /* sem push o aviso ainda aparece no app; não vale derrubar o cancelamento */
+    }
+
     return mapCancellation(data)
   },
   /** Desfaz o aviso — a aula vai acontecer afinal. */

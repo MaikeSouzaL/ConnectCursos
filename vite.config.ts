@@ -10,8 +10,13 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
+      // injectManifest (e não generateSW) porque o service worker precisa de
+      // handlers próprios de push/notificationclick — ver src/sw.ts.
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'robots.txt'],
+      includeAssets: ['favicon.png', 'robots.txt'],
       manifest: {
         name: 'Conect Cursos',
         short_name: 'Conect',
@@ -37,10 +42,8 @@ export default defineConfig({
           },
         ],
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
-        navigateFallback: '/index.html',
-        cleanupOutdatedCaches: true,
       },
       devOptions: { enabled: false },
     }),
