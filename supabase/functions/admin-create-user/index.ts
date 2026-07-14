@@ -20,9 +20,27 @@ const json = (body: unknown, status = 200) =>
     headers: { ...cors, 'Content-Type': 'application/json' },
   })
 
-/** Senha temporária legível: Conect + 4 dígitos. */
+/**
+ * Senha temporária: legível para o admin ditar, mas não adivinhável.
+ *
+ * Era `Conect` + 4 dígitos — 9.000 possibilidades num formato público. Quem
+ * soubesse o e-mail de alguém que ainda não fez o 1º acesso chegava na conta
+ * varrendo Conect1000..Conect9999. E como o 1º acesso obriga a trocar a senha,
+ * o invasor definiria a senha nova e trancaria o dono para fora. Numa conta de
+ * professor isso cancela aula e dispara push para a turma inteira.
+ *
+ * Math.random() também não servia: não é criptográfico e não deve gerar
+ * segredo.
+ *
+ * Alfabeto sem 0/O/1/I/l: a senha é ditada por telefone ou WhatsApp, e essas
+ * letras geram dúvida. Sobram 31 símbolos em 8 posições (~8,5 x 10^11).
+ */
+const ALFABETO = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
 function genTempPassword(): string {
-  return `Conect${Math.floor(1000 + Math.random() * 9000)}`
+  const bytes = new Uint8Array(8)
+  crypto.getRandomValues(bytes)
+  const s = Array.from(bytes, (b) => ALFABETO[b % ALFABETO.length]).join('')
+  return `Conect-${s.slice(0, 4)}-${s.slice(4)}`
 }
 
 Deno.serve(async (req) => {
