@@ -15,8 +15,13 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Logomark } from '@/components/brand/Logo'
 import { useAsync } from '@/hooks/use-async'
-import { avatarService, institutionService, preferencesService, type Institution } from '@/data/services'
+import { avatarService, institutionService, type Institution } from '@/data/services'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
+import {
+  notificationDefs,
+  useNotificationPrefs,
+  type PrefKey,
+} from '@/features/settings/notification-prefs'
 import { useTheme, type Theme } from '@/hooks/use-theme'
 import { maskCNPJ, maskPhone } from '@/lib/masks'
 import { cn } from '@/lib/utils'
@@ -223,42 +228,20 @@ function AppearanceTab() {
   )
 }
 
-const notificationDefs = [
-  { key: 'inadimplencia', label: 'Alertas de inadimplência', desc: 'Avisar quando um aluno ficar em atraso.' },
-  { key: 'faltas', label: 'Faltas de alunos', desc: 'Notificar faltas registradas nas turmas.' },
-  { key: 'reservas', label: 'Reservas de sala', desc: 'Avisar sobre reservas pendentes de confirmação.' },
-  { key: 'resumo', label: 'Resumo diário por e-mail', desc: 'Enviar um panorama do dia todo fim de tarde.' },
-]
-
-const notificationDefaults: Record<string, boolean> = {
-  inadimplencia: true,
-  faltas: true,
-  reservas: true,
-  resumo: false,
-}
-
 function NotificationsTab() {
   const user = useAuth((s) => s.user)
-  const { data } = useAsync(
-    () => (user ? preferencesService.get(user.id) : Promise.resolve({})),
-    [user?.id],
-  )
-  const [enabled, setEnabled] = useState<Record<string, boolean>>(notificationDefaults)
+  const { prefs, carregado, carregar, alternar } = useNotificationPrefs()
 
   useEffect(() => {
-    if (data) setEnabled({ ...notificationDefaults, ...data })
-  }, [data])
+    if (user && !carregado) void carregar(user.id)
+  }, [user?.id, carregado, carregar])
 
-  const toggle = async (key: string, label: string, value: boolean) => {
+  const toggle = async (key: PrefKey, label: string, value: boolean) => {
     if (!user) return
-    const previous = enabled
-    const next = { ...enabled, [key]: value }
-    setEnabled(next) // otimista
     try {
-      await preferencesService.update(user.id, next)
+      await alternar(user.id, key, value)
       toast.success(`${label}: ${value ? 'ativado' : 'desativado'}`)
     } catch (err) {
-      setEnabled(previous) // desfaz se falhar
       toast.error('Não foi possível salvar a preferência', { description: (err as Error).message })
     }
   }
@@ -267,7 +250,9 @@ function NotificationsTab() {
     <Card>
       <CardHeader>
         <CardTitle>Notificações</CardTitle>
-        <p className="text-sm text-muted-foreground">Escolha o que você quer acompanhar.</p>
+        <p className="text-sm text-muted-foreground">
+          Escolha o que aparece no sino do painel. Vale só para você.
+        </p>
       </CardHeader>
       <CardContent className="divide-y divide-border">
         {notificationDefs.map((n) => (
@@ -277,7 +262,7 @@ function NotificationsTab() {
               <p className="text-sm text-muted-foreground">{n.desc}</p>
             </div>
             <Switch
-              checked={enabled[n.key] ?? false}
+              checked={prefs[n.key] ?? true}
               onCheckedChange={(v) => toggle(n.key, n.label, v)}
               aria-label={n.label}
             />

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as PopoverPrimitive from '@radix-ui/react-popover'
 import {
@@ -11,6 +11,8 @@ import {
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/use-async'
 import { dashboardService } from '@/data/services'
+import { useAuth } from '@/features/auth/auth-store'
+import { filtrarAlertas, useNotificationPrefs } from '@/features/settings/notification-prefs'
 import { formatRelative } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import type { Alert } from '@/data/types'
@@ -35,9 +37,18 @@ const routeFor: Record<Alert['kind'], string> = {
 
 export function NotificationsBell() {
   const [open, setOpen] = useState(false)
-  const { data: alerts } = useAsync(() => dashboardService.alerts(), [])
+  const { data: todos } = useAsync(() => dashboardService.alerts(), [])
+  const user = useAuth((s) => s.user)
+  const { prefs, carregado, carregar } = useNotificationPrefs()
   const navigate = useNavigate()
-  const count = alerts?.length ?? 0
+
+  useEffect(() => {
+    if (user && !carregado) void carregar(user.id)
+  }, [user?.id, carregado, carregar])
+
+  // O que a tela de Configurações desligou não aparece aqui.
+  const alerts = useMemo(() => filtrarAlertas(todos ?? [], prefs), [todos, prefs])
+  const count = alerts.length
 
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
@@ -66,7 +77,7 @@ export function NotificationsBell() {
             )}
           </div>
           <div className="max-h-[24rem] overflow-y-auto">
-            {alerts && alerts.length > 0 ? (
+            {alerts.length > 0 ? (
               alerts.map((a) => {
                 const Icon = severityIcon[a.severity]
                 return (
