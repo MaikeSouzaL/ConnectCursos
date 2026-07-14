@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeftIcon,
+  BuildingIcon,
   ChevronRightIcon,
   HashIcon,
   MegaphoneIcon,
@@ -73,15 +74,29 @@ export function AppChat() {
                 <div
                   className={cn(
                     'flex size-10 shrink-0 items-center justify-center rounded-xl',
-                    c.kind === 'geral' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground',
+                    c.kind === 'geral'
+                      ? 'bg-primary/10 text-primary'
+                      : c.kind === 'direto'
+                        ? 'bg-info/10 text-info'
+                        : 'bg-secondary text-muted-foreground',
                   )}
                 >
-                  {c.kind === 'geral' ? <MegaphoneIcon className="size-5" /> : <HashIcon className="size-5" />}
+                  {c.kind === 'geral' ? (
+                    <MegaphoneIcon className="size-5" />
+                  ) : c.kind === 'direto' ? (
+                    <BuildingIcon className="size-5" />
+                  ) : (
+                    <HashIcon className="size-5" />
+                  )}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{c.name}</p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {c.kind === 'geral' ? 'Avisos gerais' : c.courseName} · {c.memberCount} membros
+                    {c.kind === 'geral'
+                      ? 'Avisos gerais'
+                      : c.kind === 'direto'
+                        ? 'Fale direto com a secretaria'
+                        : `${c.courseName} · ${c.memberCount} membros`}
                   </p>
                 </div>
                 <ChevronRightIcon className="size-4 shrink-0 text-muted-foreground" />
@@ -103,13 +118,17 @@ export function AppChat() {
           <ArrowLeftIcon className="size-5" />
         </Button>
         {current?.kind === 'geral' ? (
-          <MegaphoneIcon className="size-4 text-muted-foreground" />
+          <MegaphoneIcon className="size-4 shrink-0 text-muted-foreground" />
+        ) : current?.kind === 'direto' ? (
+          <BuildingIcon className="size-4 shrink-0 text-info" />
         ) : (
-          <HashIcon className="size-4 text-muted-foreground" />
+          <HashIcon className="size-4 shrink-0 text-muted-foreground" />
         )}
         <div className="min-w-0">
           <p className="truncate font-medium leading-tight">{current?.name}</p>
-          <p className="truncate text-xs text-muted-foreground">{current?.memberCount} membros</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {current?.kind === 'direto' ? 'Conversa direta' : `${current?.memberCount} membros`}
+          </p>
         </div>
       </header>
 

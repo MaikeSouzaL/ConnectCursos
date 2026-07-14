@@ -20,6 +20,8 @@ interface AuthState {
   changePassword: (newPassword: string) => Promise<{ ok: boolean; error?: string }>
   /** Atualiza o nome do próprio usuário (perfil + metadados do Auth). */
   updateProfile: (name: string) => Promise<{ ok: boolean; error?: string }>
+  /** Reflete a selfie recém-enviada na sessão (o upload já gravou no banco). */
+  setAvatar: (url: string) => void
   /** Envia o e-mail de recuperação de senha. */
   requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>
   /** Cria o 1º administrador (bootstrap) e já autentica. */
@@ -128,6 +130,11 @@ export const useAuth = create<AuthState>()((set, get) => ({
     await supabase.auth.updateUser({ data: { name } })
     set({ user: { ...u, name } })
     return { ok: true }
+  },
+
+  setAvatar: (url) => {
+    const u = get().user
+    if (u) set({ user: { ...u, avatarUrl: url } })
   },
 
   requestPasswordReset: async (email) => {

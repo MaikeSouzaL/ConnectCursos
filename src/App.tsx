@@ -12,6 +12,7 @@ import { useAuth } from '@/features/auth/auth-store'
 // Páginas carregadas sob demanda (code-splitting por rota).
 const LoginPage = lazy(() => import('@/features/auth/login-page').then((m) => ({ default: m.LoginPage })))
 const ChangePasswordPage = lazy(() => import('@/features/auth/change-password-page').then((m) => ({ default: m.ChangePasswordPage })))
+const SelfiePage = lazy(() => import('@/features/auth/selfie-page').then((m) => ({ default: m.SelfiePage })))
 const DashboardPage = lazy(() => import('@/features/dashboard/dashboard-page').then((m) => ({ default: m.DashboardPage })))
 const StudentsPage = lazy(() => import('@/features/students/students-page').then((m) => ({ default: m.StudentsPage })))
 const StudentDetailPage = lazy(() => import('@/features/students/student-detail-page').then((m) => ({ default: m.StudentDetailPage })))
@@ -84,6 +85,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <ChangePasswordPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/selfie"
+              element={
+                <RequireAuth>
+                  <SelfiePage />
                 </RequireAuth>
               }
             />

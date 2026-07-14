@@ -15,6 +15,10 @@ export function RequireRole({ role, children }: { role: Role; children: React.Re
   if (user.mustChangePassword) {
     return <Navigate to="/trocar-senha" replace />
   }
+  // Professores e alunos precisam da selfie — é como são reconhecidos no balcão.
+  if (user.role !== 'admin' && !user.avatarUrl) {
+    return <Navigate to="/selfie" replace />
+  }
   if (user.role !== role) {
     return <Navigate to={homeFor(user.role)} replace />
   }

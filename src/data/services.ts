@@ -806,6 +806,42 @@ export const institutionService = {
   },
 }
 
+// ————————————————————————————————————— Avatar (selfie do 1º acesso)
+export const avatarService = {
+  /**
+   * Envia a selfie para o Storage e espelha a URL no perfil e no cadastro
+   * (professores/alunos), para aparecer nas listas e no balcão.
+   */
+  async uploadSelfie(
+    userId: string,
+    blob: Blob,
+    role: Role,
+    linkedId?: string,
+  ): Promise<string> {
+    const path = `${userId}/selfie.jpg`
+    const { error } = await supabase.storage.from('avatars').upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    })
+    if (error) throw new Error(error.message)
+
+    const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+    // Cache-buster: sem isso o navegador continuaria exibindo a foto antiga.
+    const url = `${data.publicUrl}?v=${Date.now()}`
+
+    await supabase.from('profiles').update({ avatar_url: url }).eq('id', userId)
+    if (linkedId && role === 'aluno') {
+      await supabase.from('students').update({ avatar_url: url }).eq('id', linkedId)
+      studentsCache.delete(linkedId)
+    }
+    if (linkedId && role === 'professor') {
+      await supabase.from('teachers').update({ avatar_url: url }).eq('id', linkedId)
+      teachersCache.delete(linkedId)
+    }
+    return url
+  },
+}
+
 // ————————————————————————————————————— Preferências de notificação (por usuário)
 export const preferencesService = {
   async get(userId: string): Promise<Record<string, boolean>> {
@@ -1192,11 +1228,17 @@ export const financeService = {
 export interface ChatChannel {
   id: string
   name: string
-  kind: 'geral' | 'turma'
+  kind: 'geral' | 'turma' | 'direto'
   courseName?: string
   memberCount: number
   lastMessageAt?: string
+  /** Só nas conversas diretas: o aluno do outro lado. */
+  studentId?: string
+  avatarUrl?: string
 }
+
+/** id do canal de conversa direta com um aluno. */
+export const dmChannelId = (studentId: string) => `dm:${studentId}`
 
 function mapMessage(r: Tables['messages']['Row']): Message {
   return {
@@ -1242,20 +1284,89 @@ async function buildChannels(): Promise<ChatChannel[]> {
   return [geralChannel, ...turmas]
 }
 
+/** Conversas diretas já iniciadas (visão do admin). */
+async function adminDmChannels(): Promise<ChatChannel[]> {
+  const { data: msgs } = await supabase
+    .from('messages')
+    .select('channel_id, created_at')
+    .like('channel_id', 'dm:%')
+  if (!msgs?.length) return []
+  const lastByChannel = new Map<string, string>()
+  msgs.forEach((m) => {
+    const prev = lastByChannel.get(m.channel_id)
+    if (!prev || m.created_at > prev) lastByChannel.set(m.channel_id, m.created_at)
+  })
+  const studentIds = [...lastByChannel.keys()].map((c) => c.slice(3))
+  const { data: students } = await supabase
+    .from('students')
+    .select('id, name, avatar_url')
+    .in('id', studentIds)
+  return (students ?? []).map((s) => ({
+    id: dmChannelId(s.id),
+    name: s.name,
+    kind: 'direto' as const,
+    memberCount: 2,
+    lastMessageAt: lastByChannel.get(dmChannelId(s.id)),
+    studentId: s.id,
+    avatarUrl: s.avatar_url ?? undefined,
+  }))
+}
+
 export const messagesService = {
   async channels(): Promise<ChatChannel[]> {
-    return buildChannels()
+    const [base, dms] = await Promise.all([buildChannels(), adminDmChannels()])
+    return [...base, ...dms]
+  },
+  /** Monta o canal de conversa direta com um aluno (mesmo sem mensagens ainda). */
+  async directChannel(studentId: string): Promise<ChatChannel | undefined> {
+    const { data } = await supabase
+      .from('students')
+      .select('id, name, avatar_url')
+      .eq('id', studentId)
+      .maybeSingle()
+    if (!data) return undefined
+    return {
+      id: dmChannelId(data.id),
+      name: data.name,
+      kind: 'direto',
+      memberCount: 2,
+      studentId: data.id,
+      avatarUrl: data.avatar_url ?? undefined,
+    }
   },
   async channelsFor(role: Role, linkedId?: string): Promise<ChatChannel[]> {
     const all = await buildChannels()
-    if (role === 'admin') return all
+    if (role === 'admin') {
+      const dms = await adminDmChannels()
+      return [...all, ...dms]
+    }
     if (role === 'aluno') {
       const { data: links } = await supabase
         .from('class_students')
         .select('class_id')
         .eq('student_id', linkedId ?? '')
       const ids = new Set((links ?? []).map((l) => l.class_id))
-      return all.filter((c) => c.id === 'geral' || ids.has(c.id))
+      const mine = all.filter((c) => c.id === 'geral' || ids.has(c.id))
+      if (!linkedId) return mine
+      // Linha direta com a secretaria — sempre disponível para o aluno.
+      const { data: last } = await supabase
+        .from('messages')
+        .select('created_at')
+        .eq('channel_id', dmChannelId(linkedId))
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return [
+        ...mine,
+        {
+          id: dmChannelId(linkedId),
+          name: 'Secretaria',
+          kind: 'direto' as const,
+          memberCount: 2,
+          lastMessageAt: last?.created_at,
+          studentId: linkedId,
+        },
+      ]
     }
     const { data: classes } = await supabase.from('classes').select('id').eq('teacher_id', linkedId ?? '')
     const ids = new Set((classes ?? []).map((c) => c.id))
@@ -1270,6 +1381,10 @@ export const messagesService = {
     return (data ?? []).map(mapMessage)
   },
   async members(channelId: string): Promise<Student[]> {
+    if (channelId.startsWith('dm:')) {
+      const { data } = await supabase.from('students').select('*').eq('id', channelId.slice(3))
+      return (data ?? []).map((r) => mapStudent(r))
+    }
     if (channelId === 'geral') {
       const { data } = await supabase.from('students').select('*').neq('status', 'concluido').order('name')
       return (data ?? []).map((r) => mapStudent(r))

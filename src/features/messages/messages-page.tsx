@@ -7,12 +7,13 @@ import {
   SearchIcon,
   SendIcon,
   UsersIcon,
+  XIcon,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useAsync } from '@/hooks/use-async'
-import { messagesService } from '@/data/services'
+import { dmChannelId, messagesService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
 import { formatTime, initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
@@ -26,18 +27,31 @@ export function MessagesPage() {
   const [showMembers, setShowMembers] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
+  const isDm = selected.startsWith('dm:')
+
   const { data: channels } = useAsync(() => messagesService.channels(), [reload])
   const { data: messages } = useAsync(() => messagesService.list(selected), [selected, reload])
   const { data: members } = useAsync(() => messagesService.members(selected), [selected, reload])
+  // Conversa direta recém-aberta ainda não aparece na lista de canais (sem mensagens).
+  const { data: dmInfo } = useAsync(
+    () => (isDm ? messagesService.directChannel(selected.slice(3)) : Promise.resolve(undefined)),
+    [selected],
+  )
 
-  const current = channels?.find((c) => c.id === selected)
+  const current = channels?.find((c) => c.id === selected) ?? dmInfo ?? undefined
   const geral = channels?.find((c) => c.id === 'geral')
-  const turmas = useMemo(() => {
-    const list = channels?.filter((c) => c.kind === 'turma') ?? []
-    if (!search) return list
-    const q = search.toLowerCase()
-    return list.filter((c) => c.name.toLowerCase().includes(q))
-  }, [channels, search])
+  const filterBySearch = (name: string) =>
+    !search || name.toLowerCase().includes(search.toLowerCase())
+  const turmas = useMemo(
+    () => (channels ?? []).filter((c) => c.kind === 'turma' && filterBySearch(c.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [channels, search],
+  )
+  const diretas = useMemo(
+    () => (channels ?? []).filter((c) => c.kind === 'direto' && filterBySearch(c.name)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [channels, search],
+  )
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
@@ -48,6 +62,11 @@ export function MessagesPage() {
     return messagesService.subscribe(selected, () => setReload((r) => r + 1))
   }, [selected])
 
+  // Ao trocar de canal, fecha o painel de membros (no mobile ele cobre a conversa).
+  useEffect(() => {
+    setShowMembers(false)
+  }, [selected])
+
   const send = async () => {
     const content = text.trim()
     if (!content || !user) return
@@ -56,16 +75,25 @@ export function MessagesPage() {
     setReload((r) => r + 1)
   }
 
+  /** Abre a conversa direta com um aluno da turma. */
+  const openDm = (studentId: string) => {
+    setSelected(dmChannelId(studentId))
+    setShowMembers(false)
+  }
+
+  const destino =
+    current?.kind === 'geral' ? 'todos os alunos' : current?.kind === 'direto' ? current.name : 'esta turma'
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="font-display text-2xl font-bold tracking-tight">Mensagens</h1>
         <p className="text-sm text-muted-foreground">
-          Converse com todos os alunos no canal Geral ou com cada turma separadamente.
+          Avisos gerais, conversa por turma ou direto com um aluno.
         </p>
       </div>
 
-      <div className="flex h-[calc(100dvh-13rem)] min-h-[520px] overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex h-[calc(100dvh-13rem)] min-h-[420px] overflow-hidden rounded-xl border border-border bg-card">
         {/* Canais */}
         <aside
           className={cn(
@@ -79,22 +107,20 @@ export function MessagesPage() {
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar turma…"
+                placeholder="Buscar turma ou aluno…"
                 className="h-9 border-transparent bg-secondary pl-8 text-sm"
               />
             </div>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto p-2">
             {geral && (
-              <div>
-                <ChannelButton
-                  active={selected === 'geral'}
-                  icon={MegaphoneIcon}
-                  name={geral.name}
-                  count={geral.memberCount}
-                  onClick={() => setSelected('geral')}
-                />
-              </div>
+              <ChannelButton
+                active={selected === 'geral'}
+                icon={MegaphoneIcon}
+                name={geral.name}
+                count={geral.memberCount}
+                onClick={() => setSelected('geral')}
+              />
             )}
             <div>
               <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -116,13 +142,39 @@ export function MessagesPage() {
                 )}
               </div>
             </div>
+            {diretas.length > 0 && (
+              <div>
+                <p className="px-2 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  Conversas diretas
+                </p>
+                <div className="space-y-0.5">
+                  {diretas.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelected(c.id)}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm transition-colors',
+                        selected === c.id
+                          ? 'bg-primary/10 text-primary'
+                          : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                      )}
+                    >
+                      <Avatar className="size-6 shrink-0">
+                        {c.avatarUrl && <AvatarImage src={c.avatarUrl} alt="" />}
+                        <AvatarFallback className="text-[9px]">{initials(c.name)}</AvatarFallback>
+                      </Avatar>
+                      <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Conversa */}
         <section className={cn('min-w-0 flex-1 flex-col', selected ? 'flex' : 'hidden sm:flex')}>
-          {/* Header */}
-          <header className="flex items-center gap-2 border-b border-border px-4 py-3">
+          <header className="flex items-center gap-2 border-b border-border px-3 py-3 sm:px-4">
             <Button
               variant="ghost"
               size="icon-sm"
@@ -133,31 +185,38 @@ export function MessagesPage() {
               <ArrowLeftIcon className="size-4" />
             </Button>
             {current?.kind === 'geral' ? (
-              <MegaphoneIcon className="size-4 text-muted-foreground" />
+              <MegaphoneIcon className="size-4 shrink-0 text-muted-foreground" />
+            ) : current?.kind === 'direto' ? (
+              <Avatar className="size-7 shrink-0">
+                {current.avatarUrl && <AvatarImage src={current.avatarUrl} alt="" />}
+                <AvatarFallback className="text-[10px]">{initials(current.name)}</AvatarFallback>
+              </Avatar>
             ) : (
-              <HashIcon className="size-4 text-muted-foreground" />
+              <HashIcon className="size-4 shrink-0 text-muted-foreground" />
             )}
             <div className="min-w-0">
               <p className="truncate font-medium leading-tight">{current?.name ?? '—'}</p>
-              {current?.courseName && (
-                <p className="truncate text-xs text-muted-foreground">{current.courseName}</p>
-              )}
+              <p className="truncate text-xs text-muted-foreground">
+                {current?.kind === 'direto' ? 'Conversa direta' : (current?.courseName ?? '')}
+              </p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto text-muted-foreground"
-              onClick={() => setShowMembers((v) => !v)}
-            >
-              <UsersIcon className="size-4" />
-              {current?.memberCount ?? 0}
-            </Button>
+            {current?.kind !== 'direto' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto shrink-0 text-muted-foreground"
+                onClick={() => setShowMembers((v) => !v)}
+              >
+                <UsersIcon className="size-4" />
+                {current?.memberCount ?? 0}
+              </Button>
+            )}
           </header>
 
-          <div className="flex min-h-0 flex-1">
+          <div className="relative flex min-h-0 flex-1">
             {/* Mensagens */}
             <div className="flex min-w-0 flex-1 flex-col">
-              <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-4">
+              <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto p-3 sm:p-4">
                 {messages && messages.length > 0 ? (
                   messages.map((m, i) => {
                     const prev = messages[i - 1]
@@ -178,7 +237,7 @@ export function MessagesPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           {!grouped && (
-                            <div className="flex items-baseline gap-2">
+                            <div className="flex flex-wrap items-baseline gap-x-2">
                               <span className="text-sm font-medium">{m.authorName}</span>
                               <span className="text-[11px] text-muted-foreground">{formatTime(m.at)}</span>
                             </div>
@@ -189,16 +248,15 @@ export function MessagesPage() {
                     )
                   })
                 ) : (
-                  <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                  <div className="flex h-full flex-col items-center justify-center gap-2 px-4 text-center">
                     <MessagesSquareIcon className="size-10 text-muted-foreground/50" />
                     <p className="text-sm font-medium">Comece a conversa</p>
                     <p className="max-w-xs text-xs text-muted-foreground">
-                      Envie a primeira mensagem para {current?.kind === 'geral' ? 'todos os alunos' : 'esta turma'}.
+                      Envie a primeira mensagem para {destino}.
                     </p>
                   </div>
                 )}
               </div>
-              {/* Input */}
               <div className="border-t border-border p-3">
                 <form
                   className="flex items-center gap-2"
@@ -220,23 +278,41 @@ export function MessagesPage() {
               </div>
             </div>
 
-            {/* Membros */}
+            {/* Membros — no mobile cobre a conversa; a partir de lg vira painel lateral. */}
             {showMembers && (
-              <aside className="hidden w-56 shrink-0 flex-col border-l border-border lg:flex">
-                <p className="border-b border-border px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-                  Membros — {members?.length ?? 0}
-                </p>
+              <aside className="absolute inset-0 z-10 flex flex-col border-l border-border bg-card lg:static lg:w-56 lg:shrink-0">
+                <div className="flex items-center justify-between border-b border-border px-4 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+                    Alunos — {members?.length ?? 0}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="lg:hidden"
+                    onClick={() => setShowMembers(false)}
+                    aria-label="Fechar lista de alunos"
+                  >
+                    <XIcon className="size-4" />
+                  </Button>
+                </div>
+                <p className="px-4 pt-2 text-xs text-muted-foreground">Toque em um aluno para falar direto.</p>
                 <div className="flex-1 space-y-1 overflow-y-auto p-2">
                   {members?.map((s) => (
-                    <div key={s.id} className="flex items-center gap-2 rounded-md px-2 py-1.5">
-                      <Avatar className="size-7">
+                    <button
+                      key={s.id}
+                      onClick={() => openDm(s.id)}
+                      className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left transition-colors hover:bg-accent"
+                    >
+                      <Avatar className="size-7 shrink-0">
+                        {s.avatarUrl && <AvatarImage src={s.avatarUrl} alt="" />}
                         <AvatarFallback className="text-[10px]">{initials(s.name)}</AvatarFallback>
                       </Avatar>
                       <span className="min-w-0 flex-1 truncate text-sm">{s.name}</span>
-                    </div>
+                      <MessagesSquareIcon className="size-4 shrink-0 text-muted-foreground" />
+                    </button>
                   ))}
                   {(members?.length ?? 0) === 0 && (
-                    <p className="px-2 py-2 text-xs text-muted-foreground">Sem membros nesta turma.</p>
+                    <p className="px-2 py-2 text-xs text-muted-foreground">Sem alunos nesta turma.</p>
                   )}
                 </div>
               </aside>
