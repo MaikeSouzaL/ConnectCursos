@@ -697,6 +697,27 @@ export const classesService = {
 }
 
 // ————————————————————————————————————— Salas & Agendamentos
+/**
+ * Quem já ocupa o horário que acabou de ser recusado pela trava do banco.
+ * Repete a mesma regra de sobreposição da constraint 0018 — comparar 'HH:MM'
+ * como texto funciona porque a hora vem sempre com dois dígitos.
+ */
+async function descreveConflito(data: Omit<RoomBooking, 'id'>): Promise<string> {
+  const sala = roomsCache.get(data.roomId)?.name ?? 'A sala'
+  const { data: rows } = await supabase
+    .from('room_bookings')
+    .select('title, start_time, end_time, renter_name')
+    .eq('room_id', data.roomId)
+    .eq('date', data.date)
+    .neq('status', 'cancelado')
+    .lt('start_time', data.end)
+    .gt('end_time', data.start)
+    .limit(1)
+  const c = rows?.[0]
+  if (!c) return `${sala} já está reservada nesse horário.`
+  return `${sala} já está reservada das ${c.start_time} às ${c.end_time} — ${c.renter_name ?? c.title}.`
+}
+
 export const roomsService = {
   async list(): Promise<Room[]> {
     const { data } = await supabase.from('rooms').select('*').order('name')
@@ -732,7 +753,14 @@ export const roomsService = {
       })
       .select()
       .single()
-    if (error || !row) throw new Error(error?.message ?? 'Falha ao criar reserva')
+    if (error) {
+      // 23P01 = a trava de sobreposição (migration 0018). Quem está na recepção
+      // precisa saber com quem conflita, não o código do Postgres.
+      if (error.code === '23P01') throw new Error(await descreveConflito(data))
+      if (error.code === '22000') throw new Error('Horário inválido: o fim deve ser depois do início.')
+      throw new Error(error.message)
+    }
+    if (!row) throw new Error('Falha ao criar reserva')
     return mapBooking(row)
   },
   async create(data: Omit<Room, 'id'>): Promise<Room> {
@@ -1155,20 +1183,30 @@ export const attendanceService = {
     const ausentes = matriculados.filter((id) => !comRegistro.has(id))
     if (!ausentes.length) return { faltas: 0, jaRegistrados: comRegistro.size }
 
-    const { error } = await supabase.from('attendance').insert(
-      ausentes.map((studentId) => ({
-        person_id: studentId,
-        person_role: 'aluno',
-        class_id: classId,
-        date,
-        check_in_at: null,
-        check_out_at: null,
-        method: 'manual' as const,
-        status: 'falta' as const,
-      })),
-    )
+    // Entre a leitura acima e esta escrita, um aluno pode ter escaneado o QR.
+    // Sem o "não faça nada em caso de conflito", esse encontro derrubaria a
+    // chamada inteira com erro de índice único — e quem chegou não pode virar
+    // falta de qualquer forma.
+    const { data: gravadas, error } = await supabase
+      .from('attendance')
+      .upsert(
+        ausentes.map((studentId) => ({
+          person_id: studentId,
+          person_role: 'aluno',
+          class_id: classId,
+          date,
+          check_in_at: null,
+          check_out_at: null,
+          method: 'manual' as const,
+          status: 'falta' as const,
+        })),
+        { onConflict: 'person_id,date,person_role', ignoreDuplicates: true },
+      )
+      .select('person_id')
     if (error) throw new Error(error.message)
-    return { faltas: ausentes.length, jaRegistrados: comRegistro.size }
+    // Conta o que entrou, não o que se pretendia: quem escaneou no meio do
+    // caminho foi pulado e não é falta.
+    return { faltas: gravadas?.length ?? 0, jaRegistrados: comRegistro.size }
   },
   /**
    * O aluno apareceu depois da chamada fechada: a falta vira presença.
@@ -1246,7 +1284,24 @@ export const attendanceService = {
         })
         .select()
         .single()
-      if (error || !inserted) throw new Error(error?.message ?? 'Falha ao registrar entrada')
+      if (error) {
+        // 23505: um registro nasceu entre a leitura acima e esta escrita — dois
+        // toques quase juntos, a fila offline reenviando, ou a chamada fechando
+        // neste instante. É a mesma chegada, então devolve a entrada que venceu
+        // em vez de erro (e nunca 'saída': ninguém saiu).
+        if (error.code === '23505') {
+          const { data: vencedor } = await supabase
+            .from('attendance')
+            .select('*')
+            .eq('person_id', personId)
+            .eq('date', date)
+            .eq('person_role', role)
+            .single()
+          if (vencedor) return { action: 'entrada', at, record: mapAttendance(vencedor) }
+        }
+        throw new Error(error.message)
+      }
+      if (!inserted) throw new Error('Falha ao registrar entrada')
       return { action: 'entrada', at, record: mapAttendance(inserted) }
     }
 

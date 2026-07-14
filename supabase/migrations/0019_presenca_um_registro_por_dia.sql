@@ -1,0 +1,22 @@
+-- Um registro de presença por pessoa por dia.
+--
+-- O código já assumia isso, mas só o banco pode garantir. registerScan e
+-- todayStatus leem com .maybeSingle() em (person_id, date, person_role) — e
+-- maybeSingle() ESTOURA se aparecer uma segunda linha. Sem a trava, um
+-- duplicado não gerava só um número errado: travava aquele aluno para o resto
+-- do dia, sem conseguir marcar entrada nem saída.
+--
+-- Provado no dev: o mesmo aluno aceitava dois registros no mesmo dia, e pior,
+-- aceitava 'presente' e 'falta' ao mesmo tempo — dados que se contradizem
+-- dentro do relatório de frequência.
+--
+-- Três caminhos criam o duplicado, todos plausíveis:
+--   1. dois toques rápidos no scanner (os dois leem "sem registro", os dois gravam);
+--   2. a fila offline do PWA reenviando um check-in que já tinha entrado;
+--   3. o professor fechando a chamada no instante em que o aluno escaneia.
+--
+-- A chave é (pessoa, dia, papel) e não inclui a turma de propósito: o QR é do
+-- balcão, não da sala. Uma leitura registra que a pessoa entrou no prédio; a
+-- turma é deduzida da grade do dia. É o mesmo par que o código já consulta.
+create unique index attendance_uma_por_pessoa_por_dia
+  on public.attendance (person_id, date, person_role);

@@ -466,6 +466,7 @@ export type Database = {
           date: string
           end_time: string
           id: string
+          periodo: unknown
           price: number | null
           renter_name: string | null
           room_id: string
@@ -480,6 +481,7 @@ export type Database = {
           date: string
           end_time: string
           id?: string
+          periodo?: unknown
           price?: number | null
           renter_name?: string | null
           room_id: string
@@ -494,6 +496,7 @@ export type Database = {
           date?: string
           end_time?: string
           id?: string
+          periodo?: unknown
           price?: number | null
           renter_name?: string | null
           room_id?: string

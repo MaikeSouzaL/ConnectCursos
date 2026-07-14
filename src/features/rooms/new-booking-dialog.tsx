@@ -81,17 +81,26 @@ export function NewBookingDialog({
   const type = watch('type')
 
   const onSubmit = handleSubmit(async (values) => {
-    await roomsService.createBooking({
-      roomId: values.roomId,
-      title: values.title,
-      type: values.type as BookingType,
-      status: 'confirmado',
-      date: values.date,
-      start: values.start,
-      end: values.end,
-      renterName: values.renterName || undefined,
-      price: Number(values.price) || 0,
-    })
+    try {
+      await roomsService.createBooking({
+        roomId: values.roomId,
+        title: values.title,
+        type: values.type as BookingType,
+        status: 'confirmado',
+        date: values.date,
+        start: values.start,
+        end: values.end,
+        renterName: values.renterName || undefined,
+        price: Number(values.price) || 0,
+      })
+    } catch (e) {
+      // Sem isto a falha morria silenciosa: o diálogo fechava e nada era gravado.
+      // O caso comum é sala ocupada, e aí o texto já diz por quem.
+      toast.error('Não foi possível criar a reserva', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return // mantém o diálogo aberto com os dados preenchidos
+    }
     toast.success('Reserva criada', { description: values.title })
     reset()
     setOpen(false)
