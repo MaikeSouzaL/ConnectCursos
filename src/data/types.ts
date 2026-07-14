@@ -168,12 +168,14 @@ export interface User {
 
 export interface Message {
   id: ID
-  /** 'geral' ou o id da turma (cls_XX) */
+  /** 'geral', o id da turma, ou 'dm:{studentId}' */
   channelId: string
   authorId: string
   authorName: string
   authorRole: Role
   content: string
+  /** Caminho da imagem no Storage; a URL de exibição é assinada na hora. */
+  imagePath?: string
   at: string // ISO datetime
 }
 

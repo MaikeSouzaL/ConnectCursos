@@ -1288,6 +1288,9 @@ export interface ChatChannel {
 /** id do canal de conversa direta com um aluno. */
 export const dmChannelId = (studentId: string) => `dm:${studentId}`
 
+/** Teto para imagem no chat — o app roda no 4G do aluno. */
+const MAX_IMAGEM = 5 * 1024 * 1024
+
 function mapMessage(r: Tables['messages']['Row']): Message {
   return {
     id: r.id,
@@ -1296,6 +1299,7 @@ function mapMessage(r: Tables['messages']['Row']): Message {
     authorName: r.author_name,
     authorRole: r.author_role,
     content: r.content,
+    imagePath: r.image_path ?? undefined,
     at: r.created_at,
   }
 }
@@ -1450,6 +1454,7 @@ export const messagesService = {
     channelId: string,
     author: { id: string; name: string; role: Role },
     content: string,
+    imagePath?: string,
   ): Promise<Message> {
     const { data, error } = await supabase
       .from('messages')
@@ -1459,11 +1464,37 @@ export const messagesService = {
         author_name: author.name,
         author_role: author.role,
         content: content.trim(),
+        image_path: imagePath ?? null,
       })
       .select()
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Falha ao enviar mensagem')
     return mapMessage(data)
+  },
+  /** Sobe a imagem e devolve o caminho no Storage (o bucket é privado). */
+  async uploadImage(userId: string, file: File): Promise<string> {
+    if (!file.type.startsWith('image/')) throw new Error('Envie um arquivo de imagem.')
+    if (file.size > MAX_IMAGEM) throw new Error('A imagem passa de 5 MB. Escolha uma menor.')
+    const ext = file.name.split('.').pop()?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg'
+    const path = `${userId}/${crypto.randomUUID()}.${ext}`
+    const { error } = await supabase.storage.from('chat').upload(path, file, { contentType: file.type })
+    if (error) throw new Error(error.message)
+    return path
+  },
+  /**
+   * URLs de exibição das imagens. Assina em lote — uma chamada por mensagem
+   * derrubaria o chat em canais com muitas fotos.
+   */
+  async imageUrls(paths: string[]): Promise<Map<string, string>> {
+    const unicos = [...new Set(paths)]
+    if (!unicos.length) return new Map()
+    const { data, error } = await supabase.storage.from('chat').createSignedUrls(unicos, 60 * 60)
+    if (error || !data) return new Map()
+    const out = new Map<string, string>()
+    data.forEach((d) => {
+      if (d.signedUrl && d.path) out.set(d.path, d.signedUrl)
+    })
+    return out
   },
   /** Assina novas mensagens de um canal em tempo real. Retorna a função de cancelamento. */
   subscribe(channelId: string, onMessage: (m: Message) => void): () => void {
