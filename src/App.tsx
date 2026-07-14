@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
@@ -6,6 +6,7 @@ import { PageLoading } from '@/components/shared/page-loading'
 import { AdminLayout } from '@/components/layout/admin-layout'
 import { RequireAuth, RequireRole } from '@/app/guards'
 import { homeFor } from '@/app/routes-config'
+import { preloadLookups } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
 
 // Páginas carregadas sob demanda (code-splitting por rota).
@@ -45,13 +46,27 @@ function RootRedirect() {
   return <Navigate to={user ? homeFor(user.role) : '/login'} replace />
 }
 
-/** Inicializa a sessão (Supabase) e segura a UI até resolver, evitando redirecionar cedo. */
+/** Inicializa a sessão (Supabase) + aquece o cache de nomes e segura a UI até resolver. */
 function AuthGate({ children }: { children: React.ReactNode }) {
   const initializing = useAuth((s) => s.initializing)
+  const userId = useAuth((s) => s.user?.id)
+  const [ready, setReady] = useState(false)
+
   useEffect(() => {
     useAuth.getState().init()
   }, [])
-  if (initializing) return <PageLoading />
+
+  useEffect(() => {
+    if (initializing) return
+    if (userId) {
+      setReady(false)
+      preloadLookups().finally(() => setReady(true))
+    } else {
+      setReady(true)
+    }
+  }, [initializing, userId])
+
+  if (initializing || !ready) return <PageLoading />
   return <>{children}</>
 }
 
