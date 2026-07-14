@@ -22,13 +22,19 @@ import { simplesAnexoIII } from '@/lib/tax'
 import { cn } from '@/lib/utils'
 
 export function ReportsSection() {
-  const { data: flow, loading } = useAsync(() => financeService.cashFlow())
+  const { data, loading } = useAsync(async () => {
+    const [flow, rbt12] = await Promise.all([financeService.cashFlow(), financeService.rbt12()])
+    return { flow, rbt12 }
+  })
   const year = new Date().getFullYear()
+  const flow = data?.flow
 
   const report = useMemo(() => {
-    const realized = (flow ?? []).filter((f) => f.realizado)
-    const rbt12 = realized.reduce((s, f) => s + f.entradas, 0)
-    const { effectiveRate } = simplesAnexoIII(rbt12)
+    // O RBT12 vem do serviço (12 meses anteriores). Esta tela tinha a própria
+    // cópia da conta errada — somava o fluxo de caixa, que é o acumulado do ANO.
+    // Aqui doía mais: imposto subestimado vira resultado superestimado, num
+    // relatório que se apresenta como fechamento contábil para o contador.
+    const { effectiveRate } = simplesAnexoIII(data?.rbt12 ?? 0)
     const rows = (flow ?? []).map((f) => ({
       month: f.month,
       realizado: f.realizado,
@@ -47,9 +53,9 @@ export function ReportsSection() {
       { faturamento: 0, despesas: 0, impostos: 0, resultado: 0 },
     )
     return { rows, tot, effectiveRate }
-  }, [flow])
+  }, [flow, data])
 
-  if (loading || !flow) {
+  if (loading || !data || !flow) {
     return <Skeleton className="h-96 w-full rounded-xl" />
   }
 
