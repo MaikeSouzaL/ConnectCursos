@@ -11,6 +11,7 @@ import {
   FileTextIcon,
   LandmarkIcon,
   PlusIcon,
+  ReceiptIcon,
   ScaleIcon,
   TrendingUpIcon,
   TriangleAlertIcon,
@@ -192,6 +193,25 @@ export function FinancePage() {
     toast.success('Relatório completo exportado')
   }
 
+  /** Rotina de cobrança: lança as mensalidades pendentes do mês selecionado. */
+  const generateFees = async () => {
+    try {
+      const { created, skipped } = await financeService.generateMonthlyFees(month)
+      if (created === 0) {
+        toast.info('Nenhuma mensalidade a gerar', {
+          description: `Os ${skipped} alunos ativos já têm cobrança em ${monthLabel(month)}.`,
+        })
+      } else {
+        toast.success(`${created} mensalidade(s) gerada(s)`, {
+          description: `Referência ${monthLabel(month)} · vencimento dia 10${skipped ? ` · ${skipped} já tinham` : ''}.`,
+        })
+        setReload((r) => r + 1)
+      }
+    } catch (err) {
+      toast.error('Não foi possível gerar as mensalidades', { description: (err as Error).message })
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -224,6 +244,10 @@ export function FinancePage() {
                 <DropdownMenuItem onClick={exportAll}>Todos os lançamentos</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <Button size="sm" variant="outline" onClick={generateFees}>
+              <ReceiptIcon className="size-4" />
+              Gerar mensalidades
+            </Button>
             <NewEntryDialog
               onCreated={() => setReload((r) => r + 1)}
               trigger={
@@ -380,12 +404,12 @@ export function FinancePage() {
 
         {/* A receber */}
         <TabsContent value="receber">
-          <AccountsSection mode="receber" />
+          <AccountsSection mode="receber" onChanged={() => setReload((r) => r + 1)} />
         </TabsContent>
 
         {/* A pagar */}
         <TabsContent value="pagar">
-          <AccountsSection mode="pagar" />
+          <AccountsSection mode="pagar" onChanged={() => setReload((r) => r + 1)} />
         </TabsContent>
 
         {/* Impostos */}

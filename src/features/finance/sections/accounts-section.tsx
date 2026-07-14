@@ -61,7 +61,14 @@ const accessors: Record<string, (p: Payment) => string | number> = {
   days: (p) => daysOverdue(p.dueDate),
 }
 
-export function AccountsSection({ mode }: { mode: 'receber' | 'pagar' }) {
+export function AccountsSection({
+  mode,
+  onChanged,
+}: {
+  mode: 'receber' | 'pagar'
+  /** Avisa a página para recarregar os KPIs após uma baixa. */
+  onChanged?: () => void
+}) {
   const isReceber = mode === 'receber'
   const [reload, setReload] = useState(0)
   const { data: items, loading } = useAsync(
@@ -88,6 +95,7 @@ export function AccountsSection({ mode }: { mode: 'receber' | 'pagar' }) {
     await financeService.markPaid(id)
     toast.success(isReceber ? 'Recebimento registrado' : 'Pagamento registrado')
     setReload((r) => r + 1)
+    onChanged?.()
   }
 
   if (loading || !items) {

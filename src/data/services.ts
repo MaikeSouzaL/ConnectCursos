@@ -181,6 +181,25 @@ async function fnError(error: unknown, fallback: string): Promise<string> {
   return (error as Error)?.message ?? fallback
 }
 
+/**
+ * Vencimento da próxima mensalidade: dia 10. Se o dia 10 deste mês já passou,
+ * joga para o mês seguinte (evita nascer atrasada).
+ */
+function nextDueDate(): { dueDate: string; referenceMonth: string } {
+  const now = new Date()
+  let year = now.getFullYear()
+  let month = now.getMonth()
+  if (now.getDate() > 10) {
+    month += 1
+    if (month > 11) {
+      month = 0
+      year += 1
+    }
+  }
+  const ymStr = `${year}-${pad(month + 1)}`
+  return { dueDate: `${ymStr}-10`, referenceMonth: ymStr }
+}
+
 /** classId → studentIds a partir da tabela de matrículas. */
 async function enrollmentsByStudent(): Promise<Map<string, string[]>> {
   const { data } = await supabase.from('class_students').select('class_id, student_id')
@@ -286,6 +305,22 @@ export const studentsService = {
       await supabase.from('students').delete().eq('id', row.id)
       throw new Error(await fnError(fnErr, 'Falha ao criar o acesso do aluno'))
     }
+
+    // Já deixa a 1ª mensalidade lançada (pendente), para o aluno e o financeiro
+    // enxergarem a cobrança desde o cadastro.
+    if (data.monthlyFee > 0) {
+      const { dueDate, referenceMonth } = nextDueDate()
+      await supabase.from('payments').insert({
+        kind: 'mensalidade',
+        person_id: row.id,
+        description: `Mensalidade ${referenceMonth} — ${data.name}`,
+        amount: data.monthlyFee,
+        due_date: dueDate,
+        status: 'pendente',
+        reference_month: referenceMonth,
+      })
+    }
+
     const student = mapStudent(row, data.classIds)
     studentsCache.set(student.id, student)
     return { student, tempPassword: (fn as { tempPassword: string }).tempPassword }
@@ -941,6 +976,45 @@ export const financeService = {
       .single()
     if (error || !row) throw new Error(error?.message ?? 'Falha ao lançar')
     return mapPayment(row)
+  },
+  /**
+   * Rotina de cobrança do mês: lança a mensalidade (pendente, vence dia 10) de
+   * cada aluno ativo que ainda não tem cobrança nesse mês. Idempotente — pode
+   * rodar quantas vezes quiser que não duplica.
+   */
+  async generateMonthlyFees(month = THIS_MONTH): Promise<{ created: number; skipped: number }> {
+    const [{ data: students }, { data: existing }] = await Promise.all([
+      supabase
+        .from('students')
+        .select('id, name, monthly_fee, enrolled_at')
+        .in('status', ['ativo', 'inadimplente']),
+      supabase
+        .from('payments')
+        .select('person_id')
+        .eq('kind', 'mensalidade')
+        .eq('reference_month', month),
+    ])
+    const already = new Set((existing ?? []).map((p) => p.person_id))
+    // Elegível: tem mensalidade combinada e já estava matriculado no mês de referência.
+    const eligible = (students ?? []).filter(
+      (s) => num(s.monthly_fee) > 0 && s.enrolled_at.slice(0, 7) <= month,
+    )
+    const toCreate = eligible.filter((s) => !already.has(s.id))
+    if (toCreate.length) {
+      const { error } = await supabase.from('payments').insert(
+        toCreate.map((s) => ({
+          kind: 'mensalidade' as const,
+          person_id: s.id,
+          description: `Mensalidade ${month} — ${s.name}`,
+          amount: num(s.monthly_fee),
+          due_date: `${month}-10`,
+          status: 'pendente' as const,
+          reference_month: month,
+        })),
+      )
+      if (error) throw new Error(error.message)
+    }
+    return { created: toCreate.length, skipped: eligible.length - toCreate.length }
   },
   /** Fluxo de caixa real do ano corrente, mês a mês, a partir dos pagamentos. */
   async cashFlow(openingBalance = 0): Promise<CashFlowPoint[]> {
