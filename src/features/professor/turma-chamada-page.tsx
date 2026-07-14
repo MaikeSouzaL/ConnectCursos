@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeftIcon, LogInIcon, LogOutIcon, UsersIcon } from 'lucide-react'
+import { ArrowLeftIcon, CalendarOffIcon, LogInIcon, LogOutIcon, UsersIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, classesService } from '@/data/services'
-import { formatTime, initials } from '@/lib/format'
+import { attendanceService, cancellationsService, classesService } from '@/data/services'
+import { CancelarAulaDialog } from '@/features/professor/cancelar-aula-dialog'
+import { formatDate, formatTime, initials } from '@/lib/format'
 
 function todayISO() {
   const d = new Date()
@@ -27,6 +28,17 @@ export function ProfessorChamadaPage() {
   const { data: klass, loading } = useAsync(() => classesService.get(id), [id])
   const { data: students } = useAsync(() => classesService.students(id), [id])
   const { data: records } = useAsync(() => attendanceService.byClassAndDate(id, date), [id, date, reload])
+  const { data: avisos } = useAsync(() => cancellationsService.upcoming(id), [id, reload])
+
+  const desfazerAviso = async (avisoId: string) => {
+    try {
+      await cancellationsService.undo(avisoId)
+      toast.success('Aviso desfeito', { description: 'A turma foi informada de que a aula acontece.' })
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível desfazer', { description: (e as Error).message })
+    }
+  }
 
   const byStudent = new Map((records ?? []).map((r) => [r.personId, r]))
   const present = (students ?? []).filter((s) => {
@@ -76,6 +88,28 @@ export function ProfessorChamadaPage() {
         <h1 className="font-display text-xl font-bold tracking-tight">{klass?.courseName}</h1>
         <p className="text-sm text-muted-foreground">{klass?.name}</p>
       </div>
+
+      <CancelarAulaDialog classId={id} defaultDate={date} onSaved={() => setReload((r) => r + 1)} />
+
+      {/* Avisos já enviados — dá para desfazer se a aula acabar acontecendo. */}
+      {avisos && avisos.length > 0 && (
+        <div className="space-y-2">
+          {avisos.map((a) => (
+            <Card key={a.id} className="border-warning/30 bg-warning/5">
+              <CardContent className="flex items-center gap-3 py-3">
+                <CalendarOffIcon className="size-4 shrink-0 text-warning" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">Sem aula em {formatDate(a.date)}</p>
+                  {a.reason && <p className="truncate text-xs text-muted-foreground">{a.reason}</p>}
+                </div>
+                <Button size="sm" variant="ghost" className="shrink-0" onClick={() => desfazerAviso(a.id)}>
+                  Desfazer
+                </Button>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-end justify-between gap-3">
         <div className="space-y-1.5">

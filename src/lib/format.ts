@@ -44,6 +44,17 @@ export function formatDate(input: string | number | Date): string {
   return format(toDate(input), 'dd/MM/yyyy', { locale: ptBR })
 }
 
+/** A data cai no dia de hoje? (compara no fuso local, via toDate) */
+export function isToday(input: string | number | Date): boolean {
+  const d = toDate(input)
+  const hoje = new Date()
+  return (
+    d.getFullYear() === hoje.getFullYear() &&
+    d.getMonth() === hoje.getMonth() &&
+    d.getDate() === hoje.getDate()
+  )
+}
+
 /** dd 'de' MMM */
 export function formatDayMonth(input: string | number | Date): string {
   return format(toDate(input), "dd 'de' MMM", { locale: ptBR })

@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   CalendarClockIcon,
+  CalendarOffIcon,
   CheckCircle2Icon,
   ClockIcon,
   DoorOpenIcon,
@@ -8,15 +10,16 @@ import {
   LogOutIcon,
   QrCodeIcon,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, studentsService } from '@/data/services'
+import { attendanceService, cancellationsService, studentsService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
-import { formatTime } from '@/lib/format'
+import { formatDate, formatTime, isToday } from '@/lib/format'
 import { formatSchedule, weekdayLong } from '@/lib/schedule'
 import type { StudentDetails } from '@/data/services'
 
@@ -49,8 +52,24 @@ function nextSession(classes: StudentDetails['classes']) {
 
 export function AlunoHomePage() {
   const studentId = useAuth((s) => s.user?.linkedId ?? '')
+  const [reload, setReload] = useState(0)
   const { data, loading } = useAsync(() => studentsService.details(studentId), [studentId])
   const { data: today } = useAsync(() => attendanceService.todayStatus(studentId), [studentId])
+
+  const classIds = useMemo(() => (data?.classes ?? []).map((c) => c.id), [data])
+  const { data: avisos } = useAsync(() => cancellationsService.upcomingFor(classIds), [classIds.join('|'), reload])
+
+  // Tempo real: o professor avisa e o aviso aparece com o app aberto.
+  useEffect(() => {
+    if (!classIds.length) return
+    return cancellationsService.subscribe(classIds, (c) => {
+      toast.warning('Aula cancelada', {
+        description: c.reason || 'O professor avisou que não poderá dar aula.',
+        duration: 10000,
+      })
+      setReload((r) => r + 1)
+    })
+  }, [classIds.join('|')])
 
   if (loading || !data) {
     return (
@@ -75,6 +94,31 @@ export function AlunoHomePage() {
         <p className="text-sm text-muted-foreground">{greeting()},</p>
         <h1 className="font-display text-2xl font-bold tracking-tight">{firstName} 👋</h1>
       </div>
+
+      {/* Aula cancelada pelo professor — o aviso mais importante da tela. */}
+      {avisos && avisos.length > 0 && (
+        <div className="space-y-2">
+          {avisos.map((a) => {
+            const turma = classes.find((c) => c.id === a.classId)
+            return (
+              <Card key={a.id} className="border-danger/30 bg-danger/5">
+                <CardContent className="flex items-start gap-3 py-4">
+                  <CalendarOffIcon className="mt-0.5 size-5 shrink-0 text-danger" />
+                  <div className="min-w-0 space-y-0.5">
+                    <p className="text-sm font-semibold">
+                      Sem aula {isToday(a.date) ? 'hoje' : `em ${formatDate(a.date)}`}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {turma?.courseName ?? 'Sua turma'} — o professor avisou que não poderá dar aula.
+                    </p>
+                    {a.reason && <p className="text-xs text-muted-foreground">Motivo: {a.reason}</p>}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+      )}
 
       {/* Card de presença de hoje */}
       <Card className="overflow-hidden border-primary/20 bg-brand-glow py-0">

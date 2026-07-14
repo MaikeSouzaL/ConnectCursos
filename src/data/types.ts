@@ -166,6 +166,17 @@ export interface User {
   mustChangePassword?: boolean
 }
 
+/** Aviso do professor de que não haverá aula num dia. */
+export interface ClassCancellation {
+  id: ID
+  classId: ID
+  /** YYYY-MM-DD */
+  date: string
+  reason: string
+  createdBy?: ID
+  at: string // ISO datetime
+}
+
 export interface Message {
   id: ID
   /** 'geral', o id da turma, ou 'dm:{studentId}' */

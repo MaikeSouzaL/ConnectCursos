@@ -11,6 +11,7 @@ import type {
   Alert,
   CashFlowPoint,
   Class,
+  ClassCancellation,
   Course,
   DashboardKpis,
   Invoice,
@@ -807,6 +808,81 @@ export const institutionService = {
       .single()
     if (error || !data) throw new Error(error?.message ?? 'Falha ao salvar os dados da instituição')
     return mapInstitution(data)
+  },
+}
+
+// ————————————————————————————————————— Aula cancelada (aviso do professor)
+function mapCancellation(r: Tables['class_cancellations']['Row']): ClassCancellation {
+  return {
+    id: r.id,
+    classId: r.class_id,
+    date: r.date,
+    reason: r.reason,
+    createdBy: r.created_by ?? undefined,
+    at: r.created_at,
+  }
+}
+
+export const cancellationsService = {
+  /** Avisos de uma turma, do dia de hoje em diante. */
+  async upcoming(classId: string): Promise<ClassCancellation[]> {
+    const { data } = await supabase
+      .from('class_cancellations')
+      .select('*')
+      .eq('class_id', classId)
+      .gte('date', ymd(new Date()))
+      .order('date')
+    return (data ?? []).map(mapCancellation)
+  },
+  /** Avisos futuros de várias turmas — a home do aluno mostra todos de uma vez. */
+  async upcomingFor(classIds: string[]): Promise<ClassCancellation[]> {
+    if (!classIds.length) return []
+    const { data } = await supabase
+      .from('class_cancellations')
+      .select('*')
+      .in('class_id', classIds)
+      .gte('date', ymd(new Date()))
+      .order('date')
+    return (data ?? []).map(mapCancellation)
+  },
+  /** Avisa que não haverá aula. Regravar o mesmo dia só troca o motivo. */
+  async cancel(classId: string, date: string, reason: string, createdBy?: string): Promise<ClassCancellation> {
+    const { data, error } = await supabase
+      .from('class_cancellations')
+      .upsert(
+        { class_id: classId, date, reason: reason.trim(), created_by: createdBy ?? null },
+        { onConflict: 'class_id,date' },
+      )
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao avisar sobre a aula')
+    return mapCancellation(data)
+  },
+  /** Desfaz o aviso — a aula vai acontecer afinal. */
+  async undo(id: string): Promise<void> {
+    const { error } = await supabase.from('class_cancellations').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+  },
+  /**
+   * Escuta avisos das turmas do aluno, em tempo real.
+   *
+   * O filtro do Realtime aceita um valor só, então assina um canal por turma.
+   * A RLS já barra o que não é da turma; o filtro evita tráfego à toa.
+   */
+  subscribe(classIds: string[], onChange: (c: ClassCancellation) => void): () => void {
+    const canais = classIds.map((id) =>
+      supabase
+        .channel(`cancelamentos:${id}`)
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'class_cancellations', filter: `class_id=eq.${id}` },
+          (payload) => onChange(mapCancellation(payload.new as Tables['class_cancellations']['Row'])),
+        )
+        .subscribe(),
+    )
+    return () => {
+      canais.forEach((c) => void supabase.removeChannel(c))
+    }
   },
 }
 

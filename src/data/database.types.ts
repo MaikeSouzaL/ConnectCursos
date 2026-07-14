@@ -152,6 +152,33 @@ export type Database = {
           },
         ]
       }
+      class_cancellations: {
+        Row: {
+          class_id: string
+          created_at: string
+          created_by: string | null
+          date: string
+          id: string
+          reason: string
+        }
+        Insert: {
+          class_id: string
+          created_at?: string
+          created_by?: string | null
+          date: string
+          id?: string
+          reason?: string
+        }
+        Update: {
+          class_id?: string
+          created_at?: string
+          created_by?: string | null
+          date?: string
+          id?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       counter_qr: {
         Row: {
           created_at: string
