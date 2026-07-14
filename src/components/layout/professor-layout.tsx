@@ -32,9 +32,15 @@ export function ProfessorLayout() {
 
   useEffect(() => {
     if (online && pending > 0) {
-      flushQueue().then((results) => {
-        if (results.length) toast.success(`${results.length} leitura(s) sincronizada(s)`)
-      })
+      flushQueue()
+        .then((results) => {
+          if (results.length) toast.success(`${results.length} leitura(s) sincronizada(s)`)
+        })
+        .catch(() => {
+          toast.error('Não deu para sincronizar as leituras', {
+            description: 'Elas estão guardadas e sobem sozinhas na próxima conexão.',
+          })
+        })
     }
   }, [online, pending])
 

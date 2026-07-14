@@ -33,9 +33,17 @@ export function AlunoLayout() {
   // Sincroniza a fila offline ao reconectar (ou ao abrir já online).
   useEffect(() => {
     if (online && pending > 0) {
-      flushQueue().then((results) => {
-        if (results.length) toast.success(`${results.length} presença(s) sincronizada(s)`)
-      })
+      flushQueue()
+        .then((results) => {
+          if (results.length) toast.success(`${results.length} presença(s) sincronizada(s)`)
+        })
+        // Sem o catch, a falha virava unhandled rejection e o aluno seguia sem
+        // saber que a presença dele não subiu. A leitura continua na fila.
+        .catch(() => {
+          toast.error('Não deu para sincronizar sua presença', {
+            description: 'A leitura está guardada e vai subir sozinha na próxima conexão.',
+          })
+        })
     }
   }, [online, pending])
 

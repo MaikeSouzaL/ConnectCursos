@@ -35,15 +35,37 @@ export function enqueueScan(personId: string, at: string, role: 'aluno' | 'profe
   write(queue)
 }
 
-/** Sincroniza a fila (chamado ao reconectar). Retorna os resultados aplicados. */
+let sincronizando = false
+
+/**
+ * Sincroniza a fila (chamado ao reconectar). Retorna os resultados aplicados.
+ *
+ * Cada leitura sai da fila assim que entra no banco. A fila era esvaziada só no
+ * fim, de uma vez: se a 2ª leitura falhasse, a função inteira estourava, o
+ * write([]) não rodava, e a 1ª — que JÁ tinha gravado — continuava na fila e era
+ * reenviada depois. Reenviar um check-in que já entrou faz o registerScan achar
+ * a entrada e marcar SAÍDA: o aluno "saía" no mesmo instante em que chegou, com
+ * zero minuto de aula no relatório.
+ */
 export async function flushQueue(): Promise<ScanResult[]> {
-  const queue = read()
-  if (queue.length === 0) return []
+  // O contador da fila alimenta o useEffect que chama esta função. Como agora
+  // cada item removido mexe no contador, sem esta trava o efeito dispararia uma
+  // segunda sincronização por cima da primeira, e as duas enviariam o mesmo item.
+  if (sincronizando) return []
+  const pendentes = read()
+  if (pendentes.length === 0) return []
+
+  sincronizando = true
   const results: ScanResult[] = []
-  for (const item of queue) {
-    results.push(await attendanceService.registerScan(item.personId, item.at, item.role))
+  try {
+    for (const item of pendentes) {
+      results.push(await attendanceService.registerScan(item.personId, item.at, item.role))
+      // Relê antes de filtrar: pode ter entrado leitura nova durante o envio.
+      write(read().filter((q) => q.id !== item.id))
+    }
+  } finally {
+    sincronizando = false
   }
-  write([])
   return results
 }
 
