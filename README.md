@@ -99,6 +99,20 @@ select md5(string_agg(a, E'\n' order by a)) from (
 > O projeto de dev é do plano free: ele hiberna depois de ~1 semana parado.
 > Se o `npm run dev` não conectar, reative no painel do Supabase.
 
+### Testando no celular
+
+**Câmera exige HTTPS.** `getUserMedia` (a selfie) e o scanner de QR só rodam em
+contexto seguro. `localhost` conta como seguro; `http://192.168.x.x` **não**.
+Isso decide qual caminho usar:
+
+| Quero testar | Como |
+| --- | --- |
+| **Selfie, QR, PWA instalável** | Push na branch `dev` → a Vercel gera um **Preview** em HTTPS. As variáveis de Preview apontam para o banco de **dev**, então o selo DEV aparece e o banco real não é tocado. |
+| **Layout, textos, navegação** | `npm run dev:celular` → abre no Wi-Fi (`http://SEU-IP:5173`), com HMR. Sem câmera. |
+
+No Windows, o `dev:celular` costuma exigir liberar a porta 5173 no firewall na
+primeira vez.
+
 ---
 
 ## 📌 Escopo e próximos passos
