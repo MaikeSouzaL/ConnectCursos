@@ -7,7 +7,7 @@ import {
   MessagesSquareIcon,
 } from 'lucide-react'
 import { Logo, Logomark } from '@/components/brand/Logo'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -26,7 +26,6 @@ import { CommandPalette } from '@/components/shared/command-palette'
 import { NotificationsBell } from '@/components/shared/notifications-bell'
 import { adminNav } from '@/app/nav'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
-import { initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
@@ -99,11 +98,12 @@ function UserMenu() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className="flex items-center gap-2 rounded-lg p-1 pr-2 transition-colors hover:bg-accent">
-          <Avatar className="size-8">
-            <AvatarFallback className="bg-primary/15 text-primary">
-              {initials(user.name)}
-            </AvatarFallback>
-          </Avatar>
+          <PersonAvatar
+            name={user.name}
+            src={user.avatarUrl}
+            className="size-8"
+            fallbackClassName="bg-primary/15 text-primary"
+          />
           <div className="hidden text-left leading-tight sm:block">
             <p className="text-sm font-medium">{user.name}</p>
             <p className="text-xs text-muted-foreground">{roleLabel[user.role]}</p>

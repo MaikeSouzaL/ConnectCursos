@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRightIcon, SearchIcon, UserPlusIcon, UserSquareIcon } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -26,7 +26,7 @@ import {
 import { NewTeacherDialog } from '@/features/teachers/new-teacher-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { teachersService } from '@/data/services'
-import { formatBRL, initials } from '@/lib/format'
+import { formatBRL } from '@/lib/format'
 import type { Teacher } from '@/data/types'
 
 const accessors: Record<string, (t: Teacher) => string | number> = {
@@ -103,9 +103,7 @@ export function TeachersPage() {
                 <TableRow key={t.id} className="group">
                   <TableCell>
                     <Link to={`/admin/professores/${t.id}`} className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarFallback>{initials(t.name)}</AvatarFallback>
-                      </Avatar>
+                      <PersonAvatar name={t.name} src={t.avatarUrl} />
                       <div className="min-w-0">
                         <p className="truncate font-medium">{t.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{t.email}</p>

@@ -12,7 +12,7 @@ import {
   UserIcon,
   UsersIcon,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -33,7 +33,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { NewClassDialog } from '@/features/classes/new-class-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { attendanceService, classesService } from '@/data/services'
-import { formatDate, formatTime, initials } from '@/lib/format'
+import { formatDate, formatTime } from '@/lib/format'
 import { formatSchedule, weekdayLong } from '@/lib/schedule'
 import type { AttendanceRecord } from '@/data/types'
 
@@ -184,9 +184,7 @@ export function ClassDetailPage() {
                     <TableRow key={s.id}>
                       <TableCell>
                         <Link to={`/admin/alunos/${s.id}`} className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarFallback>{initials(s.name)}</AvatarFallback>
-                          </Avatar>
+                          <PersonAvatar name={s.name} src={s.avatarUrl} />
                           <div className="min-w-0">
                             <p className="truncate font-medium">{s.name}</p>
                             <p className="truncate text-xs text-muted-foreground">{s.email}</p>
@@ -250,9 +248,12 @@ export function ClassDetailPage() {
                       <TableRow key={s.id}>
                         <TableCell>
                           <div className="flex items-center gap-3">
-                            <Avatar className="size-7">
-                              <AvatarFallback className="text-[11px]">{initials(s.name)}</AvatarFallback>
-                            </Avatar>
+                            <PersonAvatar
+                              name={s.name}
+                              src={s.avatarUrl}
+                              className="size-7"
+                              fallbackClassName="text-[11px]"
+                            />
                             <span className="font-medium">{s.name}</span>
                           </div>
                         </TableCell>

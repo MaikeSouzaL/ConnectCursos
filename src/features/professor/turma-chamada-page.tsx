@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeftIcon, CheckCircle2Icon, UsersIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -89,6 +89,7 @@ export function ProfessorChamadaPage() {
               <Card key={s.id}>
                 <CardContent className="flex items-center gap-3 py-3">
                   <Avatar className="size-9">
+                    {s.avatarUrl && <AvatarImage src={s.avatarUrl} alt={s.name} className="object-cover" />}
                     <AvatarFallback className="text-xs">{initials(s.name)}</AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">

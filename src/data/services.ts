@@ -163,6 +163,10 @@ export function roomName(id: string) {
 export function studentName(id: string) {
   return studentsCache.get(id)?.name ?? '—'
 }
+/** Selfie do aluno (para o balcão e as listas de presença reconhecerem quem chegou). */
+export function studentAvatar(id: string) {
+  return studentsCache.get(id)?.avatarUrl
+}
 export function className(id: string) {
   return classesCache.get(id)?.name ?? '—'
 }

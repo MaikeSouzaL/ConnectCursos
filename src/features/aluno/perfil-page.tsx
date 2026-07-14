@@ -7,7 +7,7 @@ import {
   PhoneIcon,
   SunIcon,
 } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -52,6 +52,7 @@ export function AlunoPerfilPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
           <Avatar className="size-20 text-xl">
+            {data.avatarUrl && <AvatarImage src={data.avatarUrl} alt={data.name} className="object-cover" />}
             <AvatarFallback className="bg-primary/15 text-primary">{initials(data.name)}</AvatarFallback>
           </Avatar>
           <div>

@@ -13,7 +13,7 @@ import {
   UsersIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, classesService, className, studentName } from '@/data/services'
+import { attendanceService, classesService, className, studentAvatar, studentName } from '@/data/services'
 import { formatTime, initials } from '@/lib/format'
 
 function todayISO() {
@@ -104,6 +104,9 @@ function RecordsTab() {
                   <TableCell>
                     <div className="flex items-center gap-3">
                       <Avatar className="size-8">
+                        {studentAvatar(r.personId) && (
+                          <AvatarImage src={studentAvatar(r.personId)} alt="" className="object-cover" />
+                        )}
                         <AvatarFallback className="text-xs">{initials(studentName(r.personId))}</AvatarFallback>
                       </Avatar>
                       <span className="font-medium">{studentName(r.personId)}</span>
@@ -228,6 +231,7 @@ function RollCallTab() {
                     <TableCell>
                       <div className="flex items-center gap-3">
                         <Avatar className="size-8">
+                          {s.avatarUrl && <AvatarImage src={s.avatarUrl} alt={s.name} className="object-cover" />}
                           <AvatarFallback className="text-xs">{initials(s.name)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{s.name}</span>

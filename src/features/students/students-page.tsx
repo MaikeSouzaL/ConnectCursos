@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ChevronRightIcon, SearchIcon, UserPlusIcon, UsersIcon } from 'lucide-react'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -33,7 +33,7 @@ import {
 import { NewStudentDialog } from '@/features/students/new-student-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { studentsService } from '@/data/services'
-import { formatBRL, formatDate, initials } from '@/lib/format'
+import { formatBRL, formatDate } from '@/lib/format'
 import type { Student, StudentStatus } from '@/data/types'
 
 const statusOptions: Array<{ value: StudentStatus | 'todos'; label: string }> = [
@@ -133,9 +133,7 @@ export function StudentsPage() {
                 <TableRow key={s.id} className="group">
                   <TableCell>
                     <Link to={`/admin/alunos/${s.id}`} className="flex items-center gap-3">
-                      <Avatar>
-                        <AvatarFallback>{initials(s.name)}</AvatarFallback>
-                      </Avatar>
+                      <PersonAvatar name={s.name} src={s.avatarUrl} />
                       <div className="min-w-0">
                         <p className="truncate font-medium">{s.name}</p>
                         <p className="truncate text-xs text-muted-foreground">{s.email}</p>

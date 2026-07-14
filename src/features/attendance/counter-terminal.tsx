@@ -3,10 +3,10 @@ import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { ArrowRightLeftIcon, LogInIcon, LogOutIcon, RefreshCwIcon, XIcon } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, studentName } from '@/data/services'
+import { attendanceService, studentAvatar, studentName } from '@/data/services'
 import { formatTime, initials } from '@/lib/format'
 
 const TOKEN_TTL = 30 // segundos
@@ -124,6 +124,9 @@ export function CounterTerminal() {
                 {recent.map((r) => (
                   <li key={r.id} className="flex items-center gap-3">
                     <Avatar className="size-8">
+                      {studentAvatar(r.personId) && (
+                        <AvatarImage src={studentAvatar(r.personId)} alt="" className="object-cover" />
+                      )}
                       <AvatarFallback className="bg-white/10 text-xs text-white">
                         {initials(studentName(r.personId))}
                       </AvatarFallback>

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { BuildingIcon, MonitorIcon, MoonIcon, SunIcon, UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { PersonAvatar } from '@/components/shared/person-avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,7 +17,6 @@ import { useAsync } from '@/hooks/use-async'
 import { institutionService, preferencesService, type Institution } from '@/data/services'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
 import { useTheme, type Theme } from '@/hooks/use-theme'
-import { initials } from '@/lib/format'
 import { maskCNPJ, maskPhone } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 
@@ -302,9 +301,12 @@ function AccountTab() {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center gap-4">
-            <Avatar className="size-16 text-lg">
-              <AvatarFallback className="bg-primary/15 text-primary">{initials(user.name)}</AvatarFallback>
-            </Avatar>
+            <PersonAvatar
+              name={user.name}
+              src={user.avatarUrl}
+              className="size-16 text-lg"
+              fallbackClassName="bg-primary/15 text-primary"
+            />
             <div>
               <p className="font-display font-semibold">{user.name}</p>
               <p className="text-sm text-muted-foreground">{user.email}</p>

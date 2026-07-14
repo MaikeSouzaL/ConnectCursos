@@ -10,7 +10,7 @@ import {
   SunIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
@@ -65,6 +65,9 @@ export function ProfessorPerfilPage() {
       <Card>
         <CardContent className="flex flex-col items-center gap-3 py-6 text-center">
           <Avatar className="size-20 text-xl">
+            {teacher.avatarUrl && (
+              <AvatarImage src={teacher.avatarUrl} alt={teacher.name} className="object-cover" />
+            )}
             <AvatarFallback className="bg-primary/15 text-primary">{initials(teacher.name)}</AvatarFallback>
           </Avatar>
           <div>

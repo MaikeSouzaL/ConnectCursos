@@ -140,7 +140,8 @@ export function DashboardPage() {
       </div>
 
       {/* Receita + Agenda */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* grid-cols-1: sem ele a coluna implícita vira max-content e o gráfico vaza no mobile. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
@@ -203,7 +204,8 @@ export function DashboardPage() {
       </div>
 
       {/* Frequência + Alertas */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* grid-cols-1: sem ele a coluna implícita vira max-content e o gráfico vaza no mobile. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="min-w-0 lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
             <div>
