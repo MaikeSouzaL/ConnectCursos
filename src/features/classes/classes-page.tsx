@@ -4,6 +4,7 @@ import {
   ChevronRightIcon,
   GaugeIcon,
   GraduationCapIcon,
+  PlusIcon,
   SearchIcon,
   UsersIcon,
 } from 'lucide-react'
@@ -30,6 +31,7 @@ import {
   usePagination,
   useSortable,
 } from '@/components/shared/data-table'
+import { NewClassDialog } from '@/features/classes/new-class-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { classesService, type ClassWithStats } from '@/data/services'
 import { formatPercent } from '@/lib/format'
@@ -45,7 +47,8 @@ const accessors: Record<string, (c: ClassWithStats) => string | number> = {
 
 export function ClassesPage() {
   const [search, setSearch] = useState('')
-  const { data: classes, loading } = useAsync(() => classesService.list(search), [search])
+  const [reload, setReload] = useState(0)
+  const { data: classes, loading } = useAsync(() => classesService.list(search), [search, reload])
 
   const stats = useMemo(() => {
     if (!classes || classes.length === 0) return null
@@ -60,7 +63,21 @@ export function ClassesPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Turmas" description="Acompanhe turmas, horários e ocupação." />
+      <PageHeader
+        title="Turmas"
+        description="Acompanhe turmas, horários e ocupação."
+        actions={
+          <NewClassDialog
+            onCreated={() => setReload((r) => r + 1)}
+            trigger={
+              <Button size="sm">
+                <PlusIcon className="size-4" />
+                Nova turma
+              </Button>
+            }
+          />
+        }
+      />
 
       <div className="grid gap-4 sm:grid-cols-3">
         {loading || !stats ? (
