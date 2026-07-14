@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { roomsService } from '@/data/services'
+import { useAuth } from '@/features/auth/auth-store'
 import type { BookingType, Room } from '@/data/types'
 
 const schema = z
@@ -60,6 +61,7 @@ export function NewBookingDialog({
   onCreated?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const user = useAuth((s) => s.user)
   const {
     register,
     handleSubmit,
@@ -92,6 +94,11 @@ export function NewBookingDialog({
         end: values.end,
         renterName: values.renterName || undefined,
         price: Number(values.price) || 0,
+        // A RLS de room_bookings exige is_admin() OU teacher_id = my_linked_id().
+        // O diálogo nunca mandava teacher_id, então o insert do professor voltava
+        // 42501 e ele não conseguia agendar sala nenhuma — sendo que agendar sala
+        // em dia livre é justamente o que o app do professor promete a ele.
+        teacherId: user?.role === 'professor' ? user.linkedId : undefined,
       })
     } catch (e) {
       // Sem isto a falha morria silenciosa: o diálogo fechava e nada era gravado.
