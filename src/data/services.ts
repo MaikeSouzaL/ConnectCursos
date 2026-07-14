@@ -1826,32 +1826,54 @@ export const invoicesService = {
     const { data } = await supabase.from('invoices').select('*').order('number', { ascending: false })
     return (data ?? []).map(mapInvoice)
   },
+  /**
+   * Numeração fiscal: sequencial, e um número nunca se repete.
+   *
+   * Vinha do COUNT de notas, que só acerta enquanto nada some — uma nota
+   * apagada faz o contador recuar e o próximo número colidir com um já
+   * emitido. O MAIOR número emitido não recua. Cancelada continua contando, que
+   * é o certo: o número dela está queimado.
+   */
   async create(data: Omit<Invoice, 'id' | 'number' | 'status'>): Promise<Invoice> {
-    const { count } = await supabase.from('invoices').select('id', { count: 'exact', head: true })
-    const nextNum = String(1200 + (count ?? 0) + 1).padStart(6, '0')
-    const { data: row, error } = await supabase
-      .from('invoices')
-      .insert({
-        number: nextNum,
-        customer: data.customer,
-        description: data.description,
-        amount: data.amount,
-        date: data.date,
-        status: 'emitida',
-      })
-      .select()
-      .single()
-    if (error || !row) throw new Error(error?.message ?? 'Falha ao emitir nota')
-    return mapInvoice(row)
+    for (let tentativa = 0; tentativa < 3; tentativa++) {
+      const { data: ultima } = await supabase
+        .from('invoices')
+        .select('number')
+        .order('number', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const proximo = String((ultima ? Number(ultima.number) : 1200) + 1).padStart(6, '0')
+      const { data: row, error } = await supabase
+        .from('invoices')
+        .insert({
+          number: proximo,
+          customer: data.customer,
+          description: data.description,
+          amount: data.amount,
+          date: data.date,
+          status: 'emitida',
+        })
+        .select()
+        .single()
+      if (!error && row) return mapInvoice(row)
+      // 23505: outro admin emitiu entre a leitura e a escrita. É o índice único
+      // em `number` fazendo o trabalho dele — tenta de novo, já com o número
+      // seguinte. Duas notas com o mesmo número nunca saem.
+      if (error?.code !== '23505') throw new Error(error?.message ?? 'Falha ao emitir nota')
+    }
+    throw new Error('Outra emissão está em andamento. Tente novamente.')
   },
-  async cancel(id: string): Promise<Invoice | undefined> {
-    const { data } = await supabase
+  async cancel(id: string): Promise<Invoice> {
+    const { data, error } = await supabase
       .from('invoices')
       .update({ status: 'cancelada' })
       .eq('id', id)
       .select()
       .single()
-    return data ? mapInvoice(data) : undefined
+    // Sem checar o erro, uma falha aqui devolvia undefined calado e a tela
+    // anunciava "Nota cancelada" — com a nota ainda emitida na linha de baixo.
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao cancelar a nota')
+    return mapInvoice(data)
   },
 }
 

@@ -38,12 +38,22 @@ export function NewInvoiceDialog({ trigger, onCreated }: { trigger: React.ReactN
   })
 
   const onSubmit = handleSubmit(async (values) => {
-    const nf = await invoicesService.create({
-      customer: values.customer,
-      description: values.description,
-      amount: Number(values.amount),
-      date: values.date,
-    })
+    let nf
+    try {
+      nf = await invoicesService.create({
+        customer: values.customer,
+        description: values.description,
+        amount: Number(values.amount),
+        date: values.date,
+      })
+    } catch (e) {
+      // Sem isto a falha morria em silêncio: o diálogo fechava e nenhuma nota
+      // era emitida.
+      toast.error('Não foi possível registrar a nota', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success('Nota registrada', { description: `NF nº ${nf.number}` })
     reset()
     setOpen(false)

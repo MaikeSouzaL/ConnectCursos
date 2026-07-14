@@ -46,7 +46,14 @@ export function InvoicesSection() {
   const totalEmitido = emitidas.reduce((s, n) => s + n.amount, 0)
 
   const cancel = async (id: string) => {
-    await invoicesService.cancel(id)
+    try {
+      await invoicesService.cancel(id)
+    } catch (e) {
+      toast.error('Não foi possível cancelar a nota', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success('Nota cancelada')
     setReload((r) => r + 1)
   }
