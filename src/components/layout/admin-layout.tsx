@@ -5,7 +5,6 @@ import {
   LogOutIcon,
   MenuIcon,
   MessagesSquareIcon,
-  UserCogIcon,
 } from 'lucide-react'
 import { Logo, Logomark } from '@/components/brand/Logo'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -20,20 +19,15 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { PageLoading } from '@/components/shared/page-loading'
 import { CommandPalette } from '@/components/shared/command-palette'
 import { NotificationsBell } from '@/components/shared/notifications-bell'
 import { adminNav } from '@/app/nav'
-import { homeFor } from '@/app/routes-config'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
 import { initials } from '@/lib/format'
 import { cn } from '@/lib/utils'
-import type { Role } from '@/data/types'
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
@@ -97,14 +91,9 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function UserMenu() {
-  const { user, loginAs, logout } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
   if (!user) return null
-
-  const switchTo = (role: Role) => {
-    loginAs(role)
-    navigate(homeFor(role))
-  }
 
   return (
     <DropdownMenu>
@@ -129,21 +118,6 @@ function UserMenu() {
             <span className="text-xs">{user.email}</span>
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <UserCogIcon className="mr-2 size-4" />
-            Trocar de papel
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {(['admin', 'professor', 'aluno'] as Role[]).map((r) => (
-              <DropdownMenuItem key={r} onClick={() => switchTo(r)}>
-                {roleLabel[r]}
-                {user.role === r && <span className="ml-auto text-xs text-primary">atual</span>}
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           variant="destructive"

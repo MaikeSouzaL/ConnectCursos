@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
@@ -45,10 +45,21 @@ function RootRedirect() {
   return <Navigate to={user ? homeFor(user.role) : '/login'} replace />
 }
 
+/** Inicializa a sessão (Supabase) e segura a UI até resolver, evitando redirecionar cedo. */
+function AuthGate({ children }: { children: React.ReactNode }) {
+  const initializing = useAuth((s) => s.initializing)
+  useEffect(() => {
+    useAuth.getState().init()
+  }, [])
+  if (initializing) return <PageLoading />
+  return <>{children}</>
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <TooltipProvider delayDuration={200}>
+        <AuthGate>
         <Suspense fallback={<PageLoading />}>
           <Routes>
             <Route path="/" element={<RootRedirect />} />
@@ -134,6 +145,7 @@ export default function App() {
             <Route path="*" element={<RootRedirect />} />
           </Routes>
         </Suspense>
+        </AuthGate>
         <Toaster />
       </TooltipProvider>
     </BrowserRouter>

@@ -1,14 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { ArrowRightIcon, CalendarCheckIcon, QrCodeIcon, WalletIcon } from 'lucide-react'
+import { ArrowRightIcon, CalendarCheckIcon, Loader2Icon, QrCodeIcon, ShieldCheckIcon, WalletIcon } from 'lucide-react'
 import { Logo } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { homeFor } from '@/app/routes-config'
-import { roleLabel, useAuth } from '@/features/auth/auth-store'
-import type { Role } from '@/data/types'
+import { useAuth } from '@/features/auth/auth-store'
 
 const highlights = [
   { icon: QrCodeIcon, title: 'Presença por QR Code', desc: 'Entrada e saída registradas em segundos.' },
@@ -17,18 +16,25 @@ const highlights = [
 ]
 
 export function LoginPage() {
-  const { loginAs, loginWithPassword } = useAuth()
+  const { loginWithPassword, createAdmin, adminExists } = useAuth()
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@conectcursos.com')
-  const [password, setPassword] = useState('admin123')
 
-  const enter = (role: Role) => {
-    loginAs(role)
-    navigate(homeFor(role))
-  }
+  // null = ainda verificando se existe admin
+  const [setupMode, setSetupMode] = useState<boolean | null>(null)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = () => {
-    const res = loginWithPassword(email, password)
+  useEffect(() => {
+    adminExists().then((exists) => setSetupMode(!exists))
+  }, [adminExists])
+
+  const submitLogin = async () => {
+    setSubmitting(true)
+    const res = await loginWithPassword(email, password)
+    setSubmitting(false)
     if (!res.ok) {
       toast.error('E-mail ou senha inválidos', {
         description: 'Confira os dados. Novos usuários usam a senha temporária enviada pela instituição.',
@@ -41,6 +47,26 @@ export function LoginPage() {
       const user = useAuth.getState().user
       navigate(user ? homeFor(user.role) : '/')
     }
+  }
+
+  const submitSetup = async () => {
+    if (password.length < 6) {
+      toast.error('A senha deve ter ao menos 6 caracteres.')
+      return
+    }
+    if (password !== confirm) {
+      toast.error('As senhas não coincidem.')
+      return
+    }
+    setSubmitting(true)
+    const res = await createAdmin(name, email, password)
+    setSubmitting(false)
+    if (!res.ok) {
+      toast.error('Não foi possível configurar o administrador', { description: res.error })
+      return
+    }
+    toast.success('Administrador configurado!', { description: 'Bem-vindo(a) à Conect Cursos.' })
+    navigate('/admin')
   }
 
   return (
@@ -75,62 +101,120 @@ export function LoginPage() {
           <div className="mb-8 lg:hidden">
             <Logo showTagline />
           </div>
-          <div className="space-y-1.5">
-            <h2 className="font-display text-2xl font-bold tracking-tight">Bem-vindo de volta</h2>
-            <p className="text-sm text-muted-foreground">Acesse o painel da Conect Cursos.</p>
-          </div>
 
-          <form
-            className="mt-8 space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit()
-            }}
-          >
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="voce@conectcursos.com"
-              />
+          {setupMode === null ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-muted-foreground">
+              <Loader2Icon className="size-6 animate-spin" />
+              <p className="text-sm">Carregando…</p>
             </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Senha</Label>
-                <button type="button" className="text-xs font-medium text-primary hover:underline">
-                  Esqueceu a senha?
-                </button>
+          ) : setupMode ? (
+            // ————— Primeiro acesso: configurar administrador —————
+            <>
+              <div className="mb-8 flex items-center gap-3">
+                <div className="flex size-11 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <ShieldCheckIcon className="size-6" />
+                </div>
+                <div className="space-y-0.5">
+                  <h2 className="font-display text-2xl font-bold tracking-tight">Configurar instituição</h2>
+                  <p className="text-sm text-muted-foreground">Crie a conta do administrador.</p>
+                </div>
               </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Sua senha"
-              />
-            </div>
-            <Button type="submit" className="w-full" size="lg">
-              Entrar
-              <ArrowRightIcon className="size-4" />
-            </Button>
-          </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">ou entre como (demo)</span>
-            <div className="h-px flex-1 bg-border" />
-          </div>
+              <form
+                className="space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  submitSetup()
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="name">Seu nome</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="voce@conectcursos.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password">Senha</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Mínimo de 6 caracteres"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirm">Confirmar senha</Label>
+                  <Input
+                    id="confirm"
+                    type="password"
+                    value={confirm}
+                    onChange={(e) => setConfirm(e.target.value)}
+                    placeholder="Repita a senha"
+                  />
+                </div>
+                <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+                  {submitting ? <Loader2Icon className="size-4 animate-spin" /> : <ShieldCheckIcon className="size-4" />}
+                  Criar administrador e entrar
+                </Button>
+              </form>
+            </>
+          ) : (
+            // ————— Login normal —————
+            <>
+              <div className="space-y-1.5">
+                <h2 className="font-display text-2xl font-bold tracking-tight">Bem-vindo de volta</h2>
+                <p className="text-sm text-muted-foreground">Acesse o painel da Conect Cursos.</p>
+              </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            {(['admin', 'professor', 'aluno'] as Role[]).map((r) => (
-              <Button key={r} variant="outline" size="sm" onClick={() => enter(r)}>
-                {roleLabel[r]}
-              </Button>
-            ))}
-          </div>
+              <form
+                className="mt-8 space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  submitLogin()
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="email">E-mail</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="voce@conectcursos.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Senha</Label>
+                    <button type="button" className="text-xs font-medium text-primary hover:underline">
+                      Esqueceu a senha?
+                    </button>
+                  </div>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Sua senha"
+                  />
+                </div>
+                <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+                  {submitting ? <Loader2Icon className="size-4 animate-spin" /> : null}
+                  Entrar
+                  {!submitting && <ArrowRightIcon className="size-4" />}
+                </Button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </div>

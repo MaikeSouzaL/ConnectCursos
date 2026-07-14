@@ -19,7 +19,7 @@ export function ChangePasswordPage() {
 
   if (!user) return <Navigate to="/login" replace />
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (pass.length < 6) {
       setError('A senha deve ter ao menos 6 caracteres.')
@@ -29,7 +29,11 @@ export function ChangePasswordPage() {
       setError('As senhas não coincidem.')
       return
     }
-    changePassword(pass)
+    const res = await changePassword(pass)
+    if (!res.ok) {
+      setError(res.error ?? 'Não foi possível definir a senha.')
+      return
+    }
     toast.success('Senha definida com sucesso', { description: 'Bem-vindo(a) à Conect Cursos!' })
     navigate(homeFor(user.role))
   }
