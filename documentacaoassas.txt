@@ -1,0 +1,81 @@
+Servidor MCP do Asaas
+Sim! O Asaas disponibiliza um Servidor MCP (Model Context Protocol) público, que permite que assistentes de IA entendam e interajam programaticamente com a API.
+
+O que você pode fazer com ele?
+Ao conectar seu assistente de IA ao servidor MCP, você pode:
+
+Listar endpoints disponíveis na API
+Obter schemas detalhados de requisição e resposta
+Gerar exemplos de código para endpoints específicos
+Executar chamadas de API diretamente do seu editor (com autenticação)
+Pesquisar a documentação técnica
+Como usar?
+O endpoint do servidor MCP é: https://docs.asaas.com/mcp
+
+Exemplo de configuração no Cursor
+JSON
+{
+  "mcpServers": {
+    "asaas": {
+      "url": "https://docs.asaas.com/mcp"
+    }
+  }
+}
+A mesma estrutura pode ser utilizada em ferramentas como Windsurf e Claude Desktop, bastando adicionar a URL no arquivo de configuração correspondente.
+
+Autenticação
+O servidor MCP em si é público, mas para executar chamadas de API, é necessário fornecer seu access_token do Asaas de forma segura.
+
+Testando a configuração
+Após configurar, você pode testar perguntando ao seu assistente coisas como:
+
+"Como eu crio um novo cliente no Asaas?"
+"Mostre-me um exemplo para o endpoint /v3/subscriptions."
+"Quais são os parâmetros para tokenizar um cartão de crédito?"
+Para mais detalhes, consulte a documentação do MCP.
+
+More information:
+
+MCP Server (IA)
+PCI-DSS
+
+
+quanto pago por transação o assas eu tenho um sistema e preciso que o clinete insira a chave de acesso dele e com isso todas as cobrnaças e fizer ele recebe na conta dele ,
+Taxas por Transação no Asaas
+Com base na API de recuperação de taxas, os valores padrão por modalidade de cobrança são:
+
+Taxas por Forma de Pagamento
+Modalidade	Taxa
+Boleto Bancário	R$ 6,96 por cobrança (recebimento em D+1)
+PIX	0,99% (mín. R$ 0,29 / máx. R$ 1,99) + 30 transações grátis/mês
+Cartão de Crédito à vista	2,99% + R$ 0,49 por operação (recebimento em D+32)
+Cartão de Crédito 2-6x	2,99% + R$ 0,49 por operação
+Cartão de Crédito 7-12x	2,99% + R$ 0,49 por operação
+Cartão de Débito	1,89% + R$ 0,35 por operação (recebimento em D+3)
+??
+As taxas podem variar conforme o plano negociado. Consulte as taxas reais da sua conta via API ou painel.
+Sobre o Modelo que Você Descreveu
+O que você precisa é um modelo de marketplace/plataforma, onde:
+
+Seu cliente cadastra a chave de API dele no seu sistema
+Você gera cobranças usando a API com o token dele
+O dinheiro cai diretamente na conta do seu cliente
+Isso é perfeitamente viável! Você pode consultar as taxas da conta do seu cliente programaticamente:
+
+cURL
+curl -X GET "https://api.asaas.com/v3/myAccount/fees/" \
+  -H "access_token: TOKEN_DO_SEU_CLIENTE" \
+  -H "User-Agent: SuaAplicacao/1.0.0"
+Considerações Importantes
+Cada cliente paga as taxas da própria conta dele no Asaas
+Outra opção é usar subconta + split de pagamentos, onde você cria subcontas via API e repassa os valores automaticamente, podendo cobrar sua própria margem
+Para o modelo com chave de API do cliente, ele precisa criar uma conta e gerar o access_token no painel
+Recomendo entrar em contato com o time comercial para negociar taxas especiais caso tenha volume significativo de transações.
+
+More information:
+
+Recuperar taxas da conta
+Atualizar nota fiscal
+
+
+Ask AI anything…

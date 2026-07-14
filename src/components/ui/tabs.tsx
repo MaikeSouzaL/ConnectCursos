@@ -22,7 +22,9 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        'inline-flex h-10 w-fit items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground',
+        // min-h + flex-wrap: em telas estreitas as abas quebram linha em vez de
+        // vazar para fora (com h fixa, a 2ª fila era cortada/sobreposta).
+        'inline-flex min-h-10 w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground',
         className,
       )}
       {...props}
