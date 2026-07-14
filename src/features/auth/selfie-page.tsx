@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { CameraIcon, CheckIcon, RotateCcwIcon, UploadIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { Logo } from '@/components/brand/Logo'
+import { LogoLockup } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { homeFor } from '@/app/routes-config'
@@ -128,7 +128,7 @@ export function SelfiePage() {
     <div className="flex min-h-dvh items-center justify-center bg-brand-black bg-brand-glow p-4 sm:p-6">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex justify-center">
-          <Logo showTagline />
+          <LogoLockup className="mx-auto max-w-[220px]" />
         </div>
         <Card>
           <CardContent className="space-y-5 py-2">

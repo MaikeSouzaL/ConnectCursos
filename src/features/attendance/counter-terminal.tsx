@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
 import { ArrowRightLeftIcon, LogInIcon, LogOutIcon, RefreshCwIcon, XIcon } from 'lucide-react'
-import { Logo } from '@/components/brand/Logo'
+import { LogoLockup } from '@/components/brand/Logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/use-async'
@@ -61,8 +61,8 @@ export function CounterTerminal() {
 
   return (
     <div className="flex min-h-dvh flex-col bg-brand-black bg-brand-glow text-white">
-      <header className="flex items-center justify-between p-6">
-        <Logo />
+      <header className="flex items-center justify-between gap-4 p-6">
+        <LogoLockup className="max-w-[200px]" />
         <Button variant="ghost" size="sm" asChild className="text-white/70 hover:bg-white/10 hover:text-white">
           <Link to="/admin/chamadas">
             <XIcon className="size-4" />

@@ -1,40 +1,20 @@
 import { cn } from '@/lib/utils'
+import logoLockup from '@/assets/brand/logo-lockup.png'
+import logomark from '@/assets/brand/logomark.png'
 
 /**
- * Emblema da Conect Cursos — órbitas entrelaçadas (ouro + vermelho) com cometa.
- * Fundo transparente: assenta sobre qualquer superfície.
+ * Emblema da Conect Cursos — órbitas entrelaçadas (ouro + vermelho).
+ * Extraído da arte original (ver scripts/build-logo.mjs); fundo transparente,
+ * então assenta em qualquer superfície e nos dois temas.
  */
 export function Logomark({ className }: { className?: string }) {
   return (
-    <svg
-      viewBox="0 0 512 512"
-      fill="none"
-      role="img"
-      aria-label="Conect Cursos"
-      className={cn('h-8 w-8', className)}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <defs>
-        <linearGradient id="cc-gold" x1="90" y1="180" x2="430" y2="360" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FFDE59" />
-          <stop offset="1" stopColor="#FFB300" />
-        </linearGradient>
-        <linearGradient id="cc-red" x1="150" y1="150" x2="380" y2="400" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FF3B3B" />
-          <stop offset="1" stopColor="#C00510" />
-        </linearGradient>
-        <linearGradient id="cc-comet" x1="250" y1="235" x2="432" y2="150" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#FFFFFF" stopOpacity="0" />
-          <stop offset="1" stopColor="#FFFFFF" />
-        </linearGradient>
-      </defs>
-      <g transform="translate(256 262)">
-        <ellipse rx="150" ry="66" transform="rotate(-24)" fill="none" stroke="url(#cc-gold)" strokeWidth="42" strokeLinecap="round" />
-        <ellipse rx="150" ry="66" transform="rotate(42)" fill="none" stroke="url(#cc-red)" strokeWidth="42" strokeLinecap="round" />
-      </g>
-      <path d="M262 236 C 320 205, 372 182, 432 150 C 388 200, 340 232, 286 258 Z" fill="url(#cc-comet)" opacity="0.95" />
-      <circle cx="432" cy="150" r="11" fill="#FFFFFF" />
-    </svg>
+    <img
+      src={logomark}
+      alt=""
+      aria-hidden
+      className={cn('h-8 w-8 shrink-0 object-contain', className)}
+    />
   )
 }
 
@@ -46,11 +26,17 @@ type LogoProps = {
   markOnly?: boolean
 }
 
-/** Lockup completo: emblema + wordmark CONECT CURSOS. */
+/**
+ * Lockup: emblema real + wordmark em texto.
+ *
+ * O wordmark é texto (e não a arte original) porque precisa acompanhar o tema:
+ * na arte ele é branco fixo e sumiria no tema claro. Onde o fundo é escuro por
+ * definição, use <LogoLockup>, que traz a arte original inteira.
+ */
 export function Logo({ className, showTagline = false, markOnly = false }: LogoProps) {
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
-      <Logomark className="h-9 w-9 shrink-0" />
+      <Logomark className="h-9 w-9" />
       {!markOnly && (
         <div className="flex flex-col leading-none">
           <div className="font-display text-lg font-bold tracking-tight">
@@ -65,5 +51,19 @@ export function Logo({ className, showTagline = false, markOnly = false }: LogoP
         </div>
       )}
     </div>
+  )
+}
+
+/**
+ * Arte original completa — emblema + wordmark + tagline.
+ * O wordmark é branco: use apenas sobre fundo escuro.
+ */
+export function LogoLockup({ className }: { className?: string }) {
+  return (
+    <img
+      src={logoLockup}
+      alt="Conect Cursos — Conectada ao seu futuro"
+      className={cn('h-auto w-full max-w-[280px] object-contain', className)}
+    />
   )
 }

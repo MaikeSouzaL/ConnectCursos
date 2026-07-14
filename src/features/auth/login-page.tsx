@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ArrowRightIcon, CalendarCheckIcon, Loader2Icon, QrCodeIcon, ShieldCheckIcon, WalletIcon } from 'lucide-react'
-import { Logo } from '@/components/brand/Logo'
+import { Logo, LogoLockup } from '@/components/brand/Logo'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -93,7 +93,7 @@ export function LoginPage() {
     <div className="grid min-h-dvh lg:grid-cols-2">
       {/* Painel de marca */}
       <div className="relative hidden overflow-hidden bg-brand-black bg-brand-glow lg:flex lg:flex-col lg:justify-between lg:p-12">
-        <Logo showTagline />
+        <LogoLockup className="max-w-[240px]" />
         <div className="space-y-8">
           <h1 className="max-w-md font-display text-4xl font-bold leading-tight tracking-tight text-white">
             A gestão da sua instituição, <span className="text-brand-gradient">conectada ao futuro.</span>
