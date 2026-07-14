@@ -1519,27 +1519,39 @@ export const financeService = {
       .lte('reference_month', ym(fim))
     return sum((data ?? []).map((p) => num(p.amount)))
   },
-  async cashFlow(openingBalance?: number): Promise<CashFlowPoint[]> {
+  async cashFlow(): Promise<CashFlowPoint[]> {
     const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     const year = TODAY.getFullYear()
     const cm = TODAY.getMonth()
-    const [{ data }, opening] = await Promise.all([
+    const [{ data }, opening, { data: anteriores }] = await Promise.all([
       supabase
         .from('payments')
         .select('*')
         .gte('reference_month', `${year}-01`)
         .lte('reference_month', `${year}-12`),
-      openingBalance !== undefined
-        ? Promise.resolve(openingBalance)
-        : supabase
-            .from('institution')
-            .select('opening_balance')
-            .eq('id', true)
-            .maybeSingle()
-            .then(({ data: inst }) => num(inst?.opening_balance)),
+      supabase
+        .from('institution')
+        .select('opening_balance')
+        .eq('id', true)
+        .maybeSingle()
+        .then(({ data: inst }) => num(inst?.opening_balance)),
+      // Tudo que já entrou e saiu ANTES deste ano. Sem isto, janeiro reiniciava
+      // do saldo inicial e o dinheiro acumulado nos anos anteriores sumia: uma
+      // escola com R$ 60 mil em caixa via "Saldo em caixa: -R$ 170,00" na
+      // virada do ano. O saldo inicial da instituição é de quando ela começou a
+      // usar o sistema, uma vez só — não é um número por ano.
+      supabase
+        .from('payments')
+        .select('amount, kind')
+        .eq('status', 'pago')
+        .lt('reference_month', `${year}-01`),
     ])
     const payments = (data ?? []).map(mapPayment)
-    let saldo = opening
+    const antes = anteriores ?? []
+    const saldoDeAnosAnteriores =
+      sum(antes.filter((p) => p.kind !== 'despesa').map((p) => num(p.amount))) -
+      sum(antes.filter((p) => p.kind === 'despesa').map((p) => num(p.amount)))
+    let saldo = opening + saldoDeAnosAnteriores
     const out: CashFlowPoint[] = []
     for (let i = 0; i < 12; i++) {
       const ymStr = `${year}-${pad(i + 1)}`
