@@ -5,9 +5,11 @@ import {
   CheckCircle2Icon,
   ClipboardCheckIcon,
   DoorOpenIcon,
+  Loader2Icon,
   LogInIcon,
   LogOutIcon,
   MaximizeIcon,
+  PrinterIcon,
   QrCodeIcon,
   TriangleAlertIcon,
   UsersIcon,
@@ -40,7 +42,15 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, classesService, className, studentAvatar, studentName } from '@/data/services'
+import {
+  attendanceService,
+  classesService,
+  className,
+  counterQrPayload,
+  counterQrService,
+  studentAvatar,
+  studentName,
+} from '@/data/services'
 import { formatTime, initials } from '@/lib/format'
 
 function todayISO() {
@@ -268,8 +278,10 @@ function RollCallTab() {
   )
 }
 
-/** Aba: apresentação do terminal do balcão + atalho para tela cheia. */
+/** Aba: apresentação do terminal do balcão + atalhos para tela cheia e impressão. */
 function TerminalTab() {
+  const { data: token } = useAsync(() => counterQrService.token(), [])
+
   return (
     <Card>
       <CardContent className="flex flex-col items-center gap-8 py-8 lg:flex-row lg:justify-between lg:px-10">
@@ -279,9 +291,9 @@ function TerminalTab() {
           </div>
           <h2 className="font-display text-2xl font-bold tracking-tight">Terminal do Balcão</h2>
           <p className="text-muted-foreground">
-            Abra o terminal em tela cheia e deixe-o visível no balcão de entrada. Os alunos escaneiam o QR Code
-            pelo app ao <strong className="text-foreground">entrar</strong> e ao{' '}
-            <strong className="text-foreground">sair</strong> — o código é rotativo a cada 30 segundos por segurança.
+            Os alunos escaneiam o QR Code pelo app ao <strong className="text-foreground">entrar</strong> e ao{' '}
+            <strong className="text-foreground">sair</strong>. O código é fixo: deixe o terminal aberto no balcão ou
+            imprima a folha e coloque na mesa — os dois mostram o mesmo QR.
           </p>
           <div className="flex flex-wrap justify-center gap-3 lg:justify-start">
             <Button asChild>
@@ -290,10 +302,27 @@ function TerminalTab() {
                 Abrir terminal do balcão
               </Link>
             </Button>
+            <Button variant="outline" asChild>
+              <Link to="/admin/chamadas/qr-impressao">
+                <PrinterIcon className="size-4" />
+                Imprimir QR
+              </Link>
+            </Button>
           </div>
         </div>
-        <div className="rounded-3xl bg-white p-5 shadow-xl ring-1 ring-border">
-          <QRCodeSVG value="conect://checkin?loc=balcao-01&preview=1" size={168} level="M" marginSize={0} fgColor="#0A0A0B" bgColor="#FFFFFF" />
+        <div className="flex size-[208px] items-center justify-center rounded-3xl bg-white p-5 shadow-xl ring-1 ring-border">
+          {token ? (
+            <QRCodeSVG
+              value={counterQrPayload(token)}
+              size={168}
+              level="M"
+              marginSize={0}
+              fgColor="#0A0A0B"
+              bgColor="#FFFFFF"
+            />
+          ) : (
+            <Loader2Icon className="size-7 animate-spin text-neutral-300" />
+          )}
         </div>
       </CardContent>
     </Card>

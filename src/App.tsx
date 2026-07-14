@@ -24,6 +24,7 @@ const ClassDetailPage = lazy(() => import('@/features/classes/class-detail-page'
 const RoomsPage = lazy(() => import('@/features/rooms/rooms-page').then((m) => ({ default: m.RoomsPage })))
 const AttendancePage = lazy(() => import('@/features/attendance/attendance-page').then((m) => ({ default: m.AttendancePage })))
 const CounterTerminal = lazy(() => import('@/features/attendance/counter-terminal').then((m) => ({ default: m.CounterTerminal })))
+const QrPrintPage = lazy(() => import('@/features/attendance/qr-print-page').then((m) => ({ default: m.QrPrintPage })))
 const FinancePage = lazy(() => import('@/features/finance/finance-page').then((m) => ({ default: m.FinancePage })))
 const MessagesPage = lazy(() => import('@/features/messages/messages-page').then((m) => ({ default: m.MessagesPage })))
 const AppChat = lazy(() => import('@/features/messages/app-chat').then((m) => ({ default: m.AppChat })))
@@ -115,6 +116,7 @@ export default function App() {
               <Route path="professores" element={<TeachersPage />} />
               <Route path="professores/:id" element={<TeacherDetailPage />} />
               <Route path="chamadas" element={<AttendancePage />} />
+              <Route path="chamadas/qr-impressao" element={<QrPrintPage />} />
               <Route path="salas" element={<RoomsPage />} />
               <Route path="mensagens" element={<MessagesPage />} />
               <Route path="financeiro" element={<FinancePage />} />

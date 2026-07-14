@@ -10,7 +10,7 @@ import {
   XIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { attendanceService, type ScanResult } from '@/data/services'
+import { attendanceService, counterQrService, parseCounterQr, type ScanResult } from '@/data/services'
 import { enqueueScan } from '@/features/aluno/checkin-queue'
 import { useOnline } from '@/features/aluno/use-online'
 import { formatTime } from '@/lib/format'
@@ -36,6 +36,7 @@ export function QrScan({
   const online = useOnline()
   const navigate = useNavigate()
   const [outcome, setOutcome] = useState<Outcome | null>(null)
+  const [invalido, setInvalido] = useState<string | null>(null)
   const [cameraError, setCameraError] = useState(false)
   const scannerRef = useRef<Html5Qrcode | null>(null)
   const handledRef = useRef(false)
@@ -53,15 +54,30 @@ export function QrScan({
     }
   }
 
-  const handleScan = async () => {
+  const handleScan = async (texto: string) => {
     if (handledRef.current) return
+
+    // Só o QR do balcão vale. Sem isso, qualquer QR marcaria presença.
+    const token = parseCounterQr(texto)
+    if (!token) {
+      setInvalido('Este QR Code não é o da Conect Cursos.')
+      return
+    }
+
     handledRef.current = true
     await stopScanner()
     const at = new Date().toISOString()
+
     if (online) {
+      if (!(await counterQrService.valido(token))) {
+        setInvalido('QR Code do balcão inválido ou desatualizado.')
+        handledRef.current = false
+        return
+      }
       const result = await attendanceService.registerScan(personId, at, role)
       setOutcome({ kind: 'online', result })
     } else {
+      // Offline o token não tem como ser conferido agora; guarda para o sync.
       enqueueScan(personId, at, role)
       setOutcome({ kind: 'offline', at })
     }
@@ -72,7 +88,12 @@ export function QrScan({
     const scanner = new Html5Qrcode('qr-reader', { verbose: false })
     scannerRef.current = scanner
     scanner
-      .start({ facingMode: 'environment' }, { fps: 10, qrbox: { width: 220, height: 220 } }, () => handleScan(), undefined)
+      .start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 220, height: 220 } },
+        (texto) => void handleScan(texto),
+        undefined,
+      )
       .catch(() => setCameraError(true))
     return () => {
       void stopScanner()
@@ -128,6 +149,12 @@ export function QrScan({
         </div>
       )}
 
+      {invalido && (
+        <div className="flex items-center gap-2 rounded-lg bg-danger/15 px-3 py-2 text-sm text-danger" role="alert">
+          <XIcon className="size-4 shrink-0" /> {invalido}
+        </div>
+      )}
+
       <div className="relative mx-auto aspect-square w-full max-w-xs overflow-hidden rounded-3xl bg-black ring-1 ring-border">
         <div id="qr-reader" className="size-full [&_video]:size-full [&_video]:object-cover" />
         {cameraError && (
@@ -142,11 +169,6 @@ export function QrScan({
       <p className="text-center text-sm text-muted-foreground">
         Aponte a câmera para o QR Code exibido no balcão da Conect Cursos.
       </p>
-
-      <Button variant="outline" size="lg" className="w-full" onClick={handleScan}>
-        <ScanLineIcon className="size-5" />
-        Simular leitura do QR (demo)
-      </Button>
     </div>
   )
 }

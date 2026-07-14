@@ -152,6 +152,24 @@ export type Database = {
           },
         ]
       }
+      counter_qr: {
+        Row: {
+          created_at: string
+          id: boolean
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          id?: boolean
+          token?: string
+        }
+        Update: {
+          created_at?: string
+          id?: boolean
+          token?: string
+        }
+        Relationships: []
+      }
       courses: {
         Row: {
           category: string
@@ -582,6 +600,7 @@ export type Database = {
     }
     Functions: {
       admin_exists: { Args: Record<PropertyKey, never>; Returns: boolean }
+      counter_token_valido: { Args: { t: string }; Returns: boolean }
       is_admin: { Args: Record<PropertyKey, never>; Returns: boolean }
       my_linked_id: { Args: Record<PropertyKey, never>; Returns: string }
       my_role: { Args: Record<PropertyKey, never>; Returns: Database["public"]["Enums"]["role"] }

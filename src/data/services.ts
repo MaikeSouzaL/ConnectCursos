@@ -810,6 +810,36 @@ export const institutionService = {
   },
 }
 
+// ————————————————————————————————————— QR do balcão (fixo, para imprimir)
+
+/** Prefixo do conteúdo do QR impresso que fica no balcão. */
+const QR_PREFIX = 'conect://checkin?balcao='
+
+/** Monta o conteúdo do QR a partir do token da instituição. */
+export const counterQrPayload = (token: string) => `${QR_PREFIX}${token}`
+
+/** Extrai o token de um QR lido; null se não for um QR da Conect. */
+export function parseCounterQr(texto: string): string | null {
+  if (!texto.startsWith(QR_PREFIX)) return null
+  const token = texto.slice(QR_PREFIX.length).trim()
+  return /^[0-9a-f-]{36}$/i.test(token) ? token : null
+}
+
+export const counterQrService = {
+  /** Token fixo do balcão. Só o admin consegue ler (é ele que imprime). */
+  async token(): Promise<string> {
+    const { data, error } = await supabase.from('counter_qr').select('token').eq('id', true).maybeSingle()
+    if (error || !data) throw new Error(error?.message ?? 'QR do balcão não encontrado')
+    return data.token
+  },
+  /** Confere um código lido sem revelar o token ao aluno. */
+  async valido(token: string): Promise<boolean> {
+    const { data, error } = await supabase.rpc('counter_token_valido', { t: token })
+    if (error) throw new Error(error.message)
+    return data === true
+  },
+}
+
 // ————————————————————————————————————— Avatar (selfie do 1º acesso)
 export const avatarService = {
   /**

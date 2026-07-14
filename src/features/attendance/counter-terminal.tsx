@@ -1,19 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QRCodeSVG } from 'qrcode.react'
-import { ArrowRightLeftIcon, LogInIcon, LogOutIcon, RefreshCwIcon, XIcon } from 'lucide-react'
+import { ArrowRightLeftIcon, Loader2Icon, LogInIcon, LogOutIcon, PrinterIcon, XIcon } from 'lucide-react'
 import { LogoLockup } from '@/components/brand/Logo'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useAsync } from '@/hooks/use-async'
-import { attendanceService, studentAvatar, studentName } from '@/data/services'
+import { attendanceService, counterQrPayload, counterQrService, studentAvatar, studentName } from '@/data/services'
 import { formatTime, initials } from '@/lib/format'
 
-const TOKEN_TTL = 30 // segundos
-
-function randomToken() {
-  return Array.from({ length: 3 }, () => Math.random().toString(36).slice(2, 6).toUpperCase()).join('-')
-}
 function todayISO() {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -21,9 +16,8 @@ function todayISO() {
 
 export function CounterTerminal() {
   const [now, setNow] = useState(new Date())
-  const [token, setToken] = useState(randomToken)
-  const [secondsLeft, setSecondsLeft] = useState(TOKEN_TTL)
   const { data: records } = useAsync(() => attendanceService.byDate(todayISO()), [])
+  const { data: token } = useAsync(() => counterQrService.token(), [])
 
   // Relógio
   useEffect(() => {
@@ -31,24 +25,7 @@ export function CounterTerminal() {
     return () => clearInterval(t)
   }, [])
 
-  // Token rotativo com contagem regressiva
-  useEffect(() => {
-    const t = setInterval(() => {
-      setSecondsLeft((s) => {
-        if (s <= 1) {
-          setToken(randomToken())
-          return TOKEN_TTL
-        }
-        return s - 1
-      })
-    }, 1000)
-    return () => clearInterval(t)
-  }, [])
-
-  const payload = useMemo(
-    () => `conect://checkin?loc=balcao-01&t=${token}&ts=${Math.floor(now.getTime() / 1000)}`,
-    [token, now],
-  )
+  const payload = token ? counterQrPayload(token) : null
 
   const clock = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
   const dateLabel = now.toLocaleDateString('pt-BR', {
@@ -72,23 +49,21 @@ export function CounterTerminal() {
       </header>
 
       <main className="flex flex-1 flex-col items-center justify-center gap-8 p-6 lg:flex-row lg:gap-16">
-        {/* QR */}
+        {/* QR fixo — o mesmo da folha impressa no balcão */}
         <div className="flex flex-col items-center">
-          <div className="rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/20">
-            <QRCodeSVG value={payload} size={248} level="M" marginSize={0} fgColor="#0A0A0B" bgColor="#FFFFFF" />
+          <div className="flex size-[296px] items-center justify-center rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-white/20">
+            {payload ? (
+              <QRCodeSVG value={payload} size={248} level="M" marginSize={0} fgColor="#0A0A0B" bgColor="#FFFFFF" />
+            ) : (
+              <Loader2Icon className="size-8 animate-spin text-brand-black/30" />
+            )}
           </div>
-          <div className="mt-4 flex w-[296px] flex-col items-center">
-            <div className="flex items-center gap-2 text-sm text-white/60">
-              <RefreshCwIcon className="size-3.5" />
-              Novo código em {secondsLeft}s
-            </div>
-            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-brand-gold transition-all duration-1000 ease-linear"
-                style={{ width: `${(secondsLeft / TOKEN_TTL) * 100}%` }}
-              />
-            </div>
-          </div>
+          <Button variant="ghost" size="sm" asChild className="mt-4 text-white/70 hover:bg-white/10 hover:text-white">
+            <Link to="/admin/chamadas/qr-impressao">
+              <PrinterIcon className="size-4" />
+              Imprimir para o balcão
+            </Link>
+          </Button>
         </div>
 
         {/* Instruções + relógio */}

@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import logoLockup from '@/assets/brand/logo-lockup.png'
+import logoLockupClaro from '@/assets/brand/logo-lockup-claro.png'
 import logomark from '@/assets/brand/logomark.png'
 
 /**
@@ -56,12 +57,20 @@ export function Logo({ className, showTagline = false, markOnly = false }: LogoP
 
 /**
  * Arte original completa — emblema + wordmark + tagline.
- * O wordmark é branco: use apenas sobre fundo escuro.
+ *
+ * `tom`: 'escuro' (padrão) traz o wordmark branco, para fundo escuro;
+ * 'claro' traz o wordmark preto, para papel e fundos claros.
  */
-export function LogoLockup({ className }: { className?: string }) {
+export function LogoLockup({
+  className,
+  tom = 'escuro',
+}: {
+  className?: string
+  tom?: 'escuro' | 'claro'
+}) {
   return (
     <img
-      src={logoLockup}
+      src={tom === 'claro' ? logoLockupClaro : logoLockup}
       alt="Conect Cursos — Conectada ao seu futuro"
       className={cn('h-auto w-full max-w-[280px] object-contain', className)}
     />

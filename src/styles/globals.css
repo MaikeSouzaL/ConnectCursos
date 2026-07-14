@@ -302,3 +302,38 @@
       0 8px 30px -12px color-mix(in srgb, var(--brand-gold) 25%, transparent);
   }
 }
+
+/* ————————————————————————————————— Impressão
+   Só o que estiver marcado com data-print-area vai para o papel; a moldura do
+   app (sidebar, topbar, botões) fica de fora. Usa visibility em vez de display
+   para não recalcular o layout do que está sendo impresso. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  [data-print-area],
+  [data-print-area] * {
+    visibility: visible;
+  }
+
+  [data-print-area] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+
+  /* Papel é branco: força o tema claro e mantém as cores do QR/logo. */
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
