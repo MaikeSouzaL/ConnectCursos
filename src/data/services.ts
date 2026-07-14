@@ -30,6 +30,9 @@ type Tables = Database['public']['Tables']
 
 const pad = (n: number) => String(n).padStart(2, '0')
 const ymd = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+/** "2026-07-14" → "14/07". Recorta a string: converter para Date voltaria um
+ *  dia nos fusos negativos, porque o construtor assume UTC. */
+const diaMes = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 const ym = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
 const TODAY = new Date()
 const THIS_MONTH = ym(TODAY)
@@ -1131,6 +1134,59 @@ export const attendanceService = {
       return { state: 'dentro', checkInAt: data.check_in_at }
     return { state: 'completo', checkInAt: data.check_in_at, checkOutAt: data.check_out_at ?? undefined }
   },
+  /**
+   * Fecha a chamada do dia: quem não tem registro vira FALTA.
+   *
+   * Sem isto, nada no sistema jamais gravava uma falta — só 'presente' era
+   * escrito. A frequência do aluno dava sempre 100% e o contador de faltas,
+   * sempre zero. Quem não apareceu simplesmente não existia.
+   *
+   * Só cria para quem está sem registro: não mexe em quem já foi marcado
+   * presente (pelo QR, pelo admin ou pelo professor). Chamar duas vezes é
+   * inofensivo.
+   */
+  async closeRoll(classId: string, date: string): Promise<{ faltas: number; jaRegistrados: number }> {
+    const [{ data: links }, { data: recs }] = await Promise.all([
+      supabase.from('class_students').select('student_id').eq('class_id', classId),
+      supabase.from('attendance').select('person_id').eq('class_id', classId).eq('date', date),
+    ])
+    const matriculados = (links ?? []).map((l) => l.student_id)
+    const comRegistro = new Set((recs ?? []).map((r) => r.person_id))
+    const ausentes = matriculados.filter((id) => !comRegistro.has(id))
+    if (!ausentes.length) return { faltas: 0, jaRegistrados: comRegistro.size }
+
+    const { error } = await supabase.from('attendance').insert(
+      ausentes.map((studentId) => ({
+        person_id: studentId,
+        person_role: 'aluno',
+        class_id: classId,
+        date,
+        check_in_at: null,
+        check_out_at: null,
+        method: 'manual' as const,
+        status: 'falta' as const,
+      })),
+    )
+    if (error) throw new Error(error.message)
+    return { faltas: ausentes.length, jaRegistrados: comRegistro.size }
+  },
+  /**
+   * O aluno apareceu depois da chamada fechada: a falta vira presença.
+   *
+   * Update, e não delete: a policy de delete é só do admin, então o professor
+   * não conseguiria desfazer a própria chamada. Update ele pode (migration
+   * 0006), e é o gesto certo de qualquer forma — o registro do dia é um só.
+   */
+  async markPresent(recordId: string, at: string = new Date().toISOString()): Promise<AttendanceRecord> {
+    const { data, error } = await supabase
+      .from('attendance')
+      .update({ status: 'presente', check_in_at: at, method: 'manual' })
+      .eq('id', recordId)
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao registrar a presença')
+    return mapAttendance(data)
+  },
   /** 1ª leitura do dia = entrada; 2ª = saída; depois = já completo. */
   async registerScan(
     personId: string,
@@ -1775,12 +1831,34 @@ export const dashboardService = {
   },
 
   async alerts(): Promise<Alert[]> {
-    const [students, teachers, bookings] = await Promise.all([
+    // Faltas dos últimos 7 dias: antes deste corte a informação vira histórico,
+    // não alerta.
+    const seteDiasAtras = new Date(TODAY)
+    seteDiasAtras.setDate(seteDiasAtras.getDate() - 7)
+
+    const [students, teachers, bookings, faltas] = await Promise.all([
       supabase.from('students').select('id, name').eq('status', 'inadimplente').limit(4),
       supabase.from('teachers').select('id, name').eq('rent_status', 'atrasado').limit(2),
       supabase.from('room_bookings').select('id, title, room_id').eq('status', 'pendente').limit(2),
+      supabase
+        .from('attendance')
+        .select('id, person_id, date, class_id')
+        .eq('status', 'falta')
+        .gte('date', ymd(seteDiasAtras))
+        .order('date', { ascending: false })
+        .limit(4),
     ])
     const alerts: Alert[] = []
+    ;(faltas.data ?? []).forEach((f) => {
+      alerts.push({
+        id: `al_${f.id}`,
+        kind: 'falta',
+        severity: 'warning',
+        title: 'Falta registrada',
+        description: `${studentName(f.person_id)} faltou em ${className(f.class_id ?? '')} (${diaMes(f.date)}).`,
+        at: f.date,
+      })
+    })
     ;(students.data ?? []).forEach((s) => {
       alerts.push({
         id: `al_${s.id}`,

@@ -156,6 +156,7 @@ function RollCallTab() {
   const [selectedClass, setSelectedClass] = useState('')
   const [date, setDate] = useState(todayISO())
   const [reload, setReload] = useState(0)
+  const [fechando, setFechando] = useState(false)
 
   const { data: classes } = useAsync(() => classesService.list(''), [])
   const chosen = selectedClass || classes?.[0]?.id || ''
@@ -200,6 +201,40 @@ function RollCallTab() {
     }
   }
 
+  /** O aluno apareceu depois da chamada fechada: a falta vira presença. */
+  const desfazerFalta = async (recordId: string) => {
+    try {
+      await attendanceService.markPresent(recordId)
+      toast.success('Presença registrada')
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível registrar', { description: (e as Error).message })
+    }
+  }
+
+  const fecharChamada = async () => {
+    if (!chosen || fechando) return
+    setFechando(true)
+    try {
+      const { faltas, jaRegistrados } = await attendanceService.closeRoll(chosen, date)
+      if (faltas === 0) {
+        toast.success('Chamada fechada', { description: 'Todos os alunos já tinham registro.' })
+      } else {
+        toast.success(`Chamada fechada — ${faltas} falta(s)`, {
+          description: `${jaRegistrados} presente(s). Quem não apareceu ficou com falta.`,
+        })
+      }
+      setReload((r) => r + 1)
+    } catch (e) {
+      toast.error('Não foi possível fechar', { description: (e as Error).message })
+    } finally {
+      setFechando(false)
+    }
+  }
+
+  /** Quem ainda não tem registro nenhum — são estes que virariam falta. */
+  const semRegistro = (students ?? []).filter((s) => !recordByStudent.has(s.id)).length
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-end gap-3">
@@ -234,6 +269,15 @@ function RollCallTab() {
           </div>
         )}
       </div>
+
+      {/* Fechar a chamada é o que faz a falta existir: sem isto, quem não
+          apareceu simplesmente não tem registro, e a frequência dá 100%. */}
+      {semRegistro > 0 && (
+        <Button variant="outline" size="sm" onClick={fecharChamada} disabled={fechando}>
+          {fechando ? <Loader2Icon className="size-4 animate-spin" /> : <ClipboardCheckIcon className="size-4" />}
+          Fechar chamada — {semRegistro} sem registro vira falta
+        </Button>
+      )}
 
       {students && students.length > 0 ? (
         <Card className="overflow-hidden py-0">
@@ -275,11 +319,19 @@ function RollCallTab() {
                       )}
                     </TableCell>
                     <TableCell className="text-right">
-                      {/* Sem registro → entrada. Dentro → saída. Completo → nada a fazer. */}
+                      {/* Sem registro → entrada. Falta → chegou. Dentro → saída.
+                          A falta tem checkOutAt nulo, então precisa vir ANTES do
+                          caso "dentro": senão a tela ofereceria "Saída" para
+                          quem não veio. */}
                       {!rec ? (
                         <Button size="sm" variant="outline" onClick={() => marcarEntrada(s.id)}>
                           <LogInIcon className="size-4" />
                           Entrada
+                        </Button>
+                      ) : rec.status === 'falta' ? (
+                        <Button size="sm" variant="outline" onClick={() => desfazerFalta(rec.id)}>
+                          <LogInIcon className="size-4" />
+                          Chegou
                         </Button>
                       ) : !rec.checkOutAt ? (
                         <Button size="sm" variant="outline" onClick={() => marcarSaida(rec.id)}>

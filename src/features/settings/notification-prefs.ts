@@ -12,16 +12,22 @@ import type { Alert } from '@/data/types'
  */
 /**
  * Só entra aqui preferência que governa um alerta que o sistema realmente
- * gera (ver dashboardService.alerts). Havia um toggle "Faltas de alunos" que
- * não tinha o que desligar: nenhum alerta do tipo 'falta' é criado, e nada
- * grava presença como falta. E um "Resumo diário por e-mail" que prometia um
- * e-mail que ninguém envia.
+ * gera (ver dashboardService.alerts).
+ *
+ * "Faltas de alunos" tinha saído por não ter o que desligar — nada gravava
+ * falta. Voltou junto com o "fechar chamada", que faz a falta existir.
+ * "Resumo diário por e-mail" continua fora: não há envio de e-mail nenhum.
  */
 export const notificationDefs = [
   {
     key: 'inadimplencia',
     label: 'Alertas de inadimplência',
     desc: 'Avisar quando um aluno ficar em atraso.',
+  },
+  {
+    key: 'faltas',
+    label: 'Faltas de alunos',
+    desc: 'Avisar sobre faltas dos últimos 7 dias.',
   },
   {
     key: 'reservas',
@@ -35,6 +41,7 @@ export type PrefKey = (typeof notificationDefs)[number]['key']
 /** Padrão: tudo ligado. Quem nunca mexeu recebe todos os avisos. */
 export const notificationDefaults: Record<string, boolean> = {
   inadimplencia: true,
+  faltas: true,
   reservas: true,
 }
 
@@ -45,6 +52,7 @@ export const notificationDefaults: Record<string, boolean> = {
  */
 const prefPorTipo: Partial<Record<Alert['kind'], PrefKey>> = {
   inadimplencia: 'inadimplencia',
+  falta: 'faltas',
   sala: 'reservas',
 }
 
