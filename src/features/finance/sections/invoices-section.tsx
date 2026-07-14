@@ -123,7 +123,7 @@ export function InvoicesSection() {
           <p className="text-sm text-muted-foreground">
             Este é um <strong className="text-foreground">registro/controle</strong> de notas. A{' '}
             <strong className="text-foreground">emissão fiscal oficial (NF-e/NFS-e)</strong> exige integração
-            com a prefeitura/SEFAZ — prevista para a fase de backend.
+            com a prefeitura/SEFAZ (certificado digital) — uma etapa à parte, ainda não integrada.
           </p>
         </CardContent>
       </Card>

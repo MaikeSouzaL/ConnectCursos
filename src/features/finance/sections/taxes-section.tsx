@@ -121,8 +121,8 @@ export function TaxesSection() {
             <p className="mt-1 text-muted-foreground">
               Os valores acima são uma estimativa com base no faturamento. A apuração e o pagamento
               oficiais são feitos no <strong className="text-foreground">PGDAS-D</strong> (Receita Federal),
-              e a emissão de NF-e/SPED exige integração fiscal — previstos para a fase de backend.
-              Consulte sempre o seu contador.
+              e a emissão de NF-e/SPED exige integração fiscal (certificado digital) — etapas à parte,
+              ainda não integradas. Consulte sempre o seu contador.
             </p>
           </div>
         </CardContent>
