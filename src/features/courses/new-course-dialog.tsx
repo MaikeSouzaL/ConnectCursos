@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,7 +25,7 @@ import {
 import { Textarea } from '@/components/ui/textarea'
 import { coursesService, teachersService } from '@/data/services'
 import { useAsync } from '@/hooks/use-async'
-import type { CourseStatus } from '@/data/types'
+import type { Course, CourseStatus } from '@/data/types'
 
 const schema = z.object({
   name: z.string().min(3, 'Informe o nome do curso'),
@@ -40,14 +40,29 @@ const schema = z.object({
 type FormValues = z.input<typeof schema>
 
 export function NewCourseDialog({
+  course,
   trigger,
-  onCreated,
+  onSaved,
 }: {
+  /** Quando informado, o diálogo entra em modo de edição. */
+  course?: Course
   trigger: React.ReactNode
-  onCreated?: () => void
+  onSaved?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const { data: teachers } = useAsync(() => teachersService.list(), [])
+  const editing = Boolean(course)
+  const { data: teachers } = useAsync(() => teachersService.list(), [open])
+
+  const defaults: FormValues = {
+    name: course?.name ?? '',
+    category: course?.category ?? '',
+    description: course?.description ?? '',
+    teacherId: course?.teacherId ?? '',
+    priceMonthly: course?.priceMonthly ?? 350,
+    durationMonths: course?.durationMonths ?? 6,
+    workloadHours: course?.workloadHours ?? 60,
+    status: course?.status ?? 'ativo',
+  }
 
   const {
     register,
@@ -56,19 +71,16 @@ export function NewCourseDialog({
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      status: 'ativo',
-      priceMonthly: 350,
-      durationMonths: 6,
-      workloadHours: 60,
-      teacherId: '',
-    },
-  })
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: defaults })
+
+  // Reaplica os valores ao (re)abrir, para não guardar rascunho da vez anterior.
+  useEffect(() => {
+    if (open) reset(defaults)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const onSubmit = handleSubmit(async (values) => {
-    await coursesService.create({
+    const payload = {
       name: values.name,
       category: values.category,
       description: values.description,
@@ -77,12 +89,21 @@ export function NewCourseDialog({
       durationMonths: Number(values.durationMonths),
       workloadHours: Number(values.workloadHours),
       status: values.status as CourseStatus,
-      color: 'var(--chart-1)',
-    })
-    toast.success('Curso cadastrado', { description: values.name })
-    reset()
-    setOpen(false)
-    onCreated?.()
+    }
+    try {
+      if (course) {
+        await coursesService.update(course.id, payload)
+        toast.success('Curso atualizado', { description: values.name })
+      } else {
+        await coursesService.create({ ...payload, color: 'var(--chart-1)' })
+        toast.success('Curso cadastrado', { description: values.name })
+        reset()
+      }
+      setOpen(false)
+      onSaved?.()
+    } catch (err) {
+      toast.error('Não foi possível salvar o curso', { description: (err as Error).message })
+    }
   })
 
   return (
@@ -90,8 +111,10 @@ export function NewCourseDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Novo curso</DialogTitle>
-          <DialogDescription>Cadastre um curso no catálogo da Conect Cursos.</DialogDescription>
+          <DialogTitle>{editing ? 'Editar curso' : 'Novo curso'}</DialogTitle>
+          <DialogDescription>
+            {editing ? 'Atualize os dados deste curso.' : 'Cadastre um curso no catálogo da Conect Cursos.'}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
@@ -168,7 +191,7 @@ export function NewCourseDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Salvando…' : 'Cadastrar curso'}
+              {isSubmitting ? 'Salvando…' : editing ? 'Salvar' : 'Cadastrar curso'}
             </Button>
           </DialogFooter>
         </form>

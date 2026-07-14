@@ -4,6 +4,7 @@ import {
   CalendarDaysIcon,
   CheckCircle2Icon,
   MailIcon,
+  PencilIcon,
   PhoneIcon,
   UserIcon,
 } from 'lucide-react'
@@ -28,6 +29,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, studentsService } from '@/data/services'
 import { formatBRL, formatDate, formatDateTime, formatTime, initials } from '@/lib/format'
+import { NewStudentDialog } from '@/features/students/new-student-dialog'
 import { formatSchedule } from '@/lib/schedule'
 
 function InfoRow({ icon: Icon, label, value }: { icon: typeof UserIcon; label: string; value: string }) {
@@ -85,12 +87,24 @@ export function StudentDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
-        <Link to="/admin/alunos">
-          <ArrowLeftIcon className="size-4" />
-          Alunos
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
+          <Link to="/admin/alunos">
+            <ArrowLeftIcon className="size-4" />
+            Alunos
+          </Link>
+        </Button>
+        <NewStudentDialog
+          student={data.student}
+          onSaved={() => setReload((r) => r + 1)}
+          trigger={
+            <Button variant="outline" size="sm">
+              <PencilIcon className="size-4" />
+              Editar
+            </Button>
+          }
+        />
+      </div>
 
       {/* Cabeçalho do aluno */}
       <Card>

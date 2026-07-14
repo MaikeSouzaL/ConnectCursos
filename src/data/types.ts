@@ -166,12 +166,6 @@ export interface User {
   mustChangePassword?: boolean
 }
 
-export interface Credential {
-  email: string
-  password: string
-  mustChangePassword: boolean
-}
-
 export interface Message {
   id: ID
   /** 'geral' ou o id da turma (cls_XX) */
@@ -245,17 +239,3 @@ export interface Alert {
   at: string
 }
 
-export interface Database {
-  users: User[]
-  teachers: Teacher[]
-  students: Student[]
-  courses: Course[]
-  classes: Class[]
-  rooms: Room[]
-  bookings: RoomBooking[]
-  attendance: AttendanceRecord[]
-  payments: Payment[]
-  credentials: Credential[]
-  invoices: Invoice[]
-  messages: Message[]
-}

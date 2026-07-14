@@ -56,7 +56,7 @@ export function TeachersPage() {
         description="Gerencie o corpo docente e o aluguel de salas."
         actions={
           <NewTeacherDialog
-            onCreated={() => setReload((r) => r + 1)}
+            onSaved={() => setReload((r) => r + 1)}
             trigger={
               <Button size="sm">
                 <UserPlusIcon className="size-4" />

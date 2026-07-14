@@ -8,6 +8,7 @@ import {
   ClockIcon,
   DoorOpenIcon,
   GraduationCapIcon,
+  PencilIcon,
   UserIcon,
   UsersIcon,
 } from 'lucide-react'
@@ -29,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { NewClassDialog } from '@/features/classes/new-class-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { attendanceService, classesService } from '@/data/services'
 import { formatDate, formatTime, initials } from '@/lib/format'
@@ -56,8 +58,9 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof UserIcon; label: s
 export function ClassDetailPage() {
   const { id = '' } = useParams()
   const [date, setDate] = useState(todayISO())
+  const [reload, setReload] = useState(0)
 
-  const { data: klass, loading } = useAsync(() => classesService.get(id), [id])
+  const { data: klass, loading } = useAsync(() => classesService.get(id), [id, reload])
   const { data: students, loading: studentsLoading } = useAsync(() => classesService.students(id), [id])
   const { data: attendance, loading: attendanceLoading } = useAsync(
     () => attendanceService.byClassAndDate(id, date),
@@ -103,12 +106,24 @@ export function ClassDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
-        <Link to="/admin/turmas">
-          <ArrowLeftIcon className="size-4" />
-          Turmas
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
+          <Link to="/admin/turmas">
+            <ArrowLeftIcon className="size-4" />
+            Turmas
+          </Link>
+        </Button>
+        <NewClassDialog
+          klass={klass}
+          onSaved={() => setReload((r) => r + 1)}
+          trigger={
+            <Button variant="outline" size="sm">
+              <PencilIcon className="size-4" />
+              Editar
+            </Button>
+          }
+        />
+      </div>
 
       {/* Cabeçalho da turma */}
       <Card>

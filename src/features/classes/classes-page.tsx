@@ -68,7 +68,7 @@ export function ClassesPage() {
         description="Acompanhe turmas, horários e ocupação."
         actions={
           <NewClassDialog
-            onCreated={() => setReload((r) => r + 1)}
+            onSaved={() => setReload((r) => r + 1)}
             trigger={
               <Button size="sm">
                 <PlusIcon className="size-4" />

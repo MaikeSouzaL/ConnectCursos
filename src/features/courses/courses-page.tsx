@@ -5,6 +5,7 @@ import {
   FolderKanbanIcon,
   GraduationCapIcon,
   LayersIcon,
+  PencilIcon,
   PlusIcon,
   SearchIcon,
   UsersIcon,
@@ -34,7 +35,7 @@ import type { CourseWithStats } from '@/data/services'
 
 const ALL_CATEGORIES = 'todas'
 
-function CourseCard({ course }: { course: CourseWithStats }) {
+function CourseCard({ course, onSaved }: { course: CourseWithStats; onSaved: () => void }) {
   return (
     <Card className="group gap-4 py-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg">
       <div className="flex items-start justify-between gap-2 px-5">
@@ -47,9 +48,25 @@ function CourseCard({ course }: { course: CourseWithStats }) {
         >
           <BookOpenIcon className="size-5" />
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <StatusBadge kind="course" value={course.status} />
-          <Badge variant="secondary">{course.category}</Badge>
+        <div className="flex items-start gap-1.5">
+          <div className="flex flex-col items-end gap-1.5">
+            <StatusBadge kind="course" value={course.status} />
+            <Badge variant="secondary">{course.category}</Badge>
+          </div>
+          <NewCourseDialog
+            course={course}
+            onSaved={onSaved}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Editar ${course.name}`}
+                className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+              >
+                <PencilIcon className="size-4" />
+              </Button>
+            }
+          />
         </div>
       </div>
 
@@ -129,7 +146,7 @@ export function CoursesPage() {
         description="Catálogo de cursos, turmas e mensalidades da instituição."
         actions={
           <NewCourseDialog
-            onCreated={() => setReload((r) => r + 1)}
+            onSaved={() => setReload((r) => r + 1)}
             trigger={
               <Button size="sm">
                 <PlusIcon className="size-4" />
@@ -201,7 +218,7 @@ export function CoursesPage() {
       ) : filtered && filtered.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((course) => (
-            <CourseCard key={course.id} course={course} />
+            <CourseCard key={course.id} course={course} onSaved={() => setReload((r) => r + 1)} />
           ))}
         </div>
       ) : (

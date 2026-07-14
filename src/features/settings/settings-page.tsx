@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import { BuildingIcon, MonitorIcon, MoonIcon, RotateCcwIcon, SunIcon, UserIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { BuildingIcon, MonitorIcon, MoonIcon, SunIcon, UserIcon } from 'lucide-react'
 import { toast } from 'sonner'
-import { resetDb } from '@/data/db'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -10,12 +9,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { PageHeader } from '@/components/ui/page-header'
 import { Separator } from '@/components/ui/separator'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Logomark } from '@/components/brand/Logo'
+import { useAsync } from '@/hooks/use-async'
+import { institutionService, preferencesService, type Institution } from '@/data/services'
 import { roleLabel, useAuth } from '@/features/auth/auth-store'
 import { useTheme, type Theme } from '@/hooks/use-theme'
 import { initials } from '@/lib/format'
+import { maskCNPJ, maskPhone } from '@/lib/masks'
 import { cn } from '@/lib/utils'
 
 function Field({ id, label, ...props }: { id: string; label: string } & React.ComponentProps<'input'>) {
@@ -28,6 +31,34 @@ function Field({ id, label, ...props }: { id: string; label: string } & React.Co
 }
 
 function InstitutionTab() {
+  const { data, loading } = useAsync(() => institutionService.get(), [])
+  const [form, setForm] = useState<Institution | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (data) setForm(data)
+  }, [data])
+
+  if (loading || !form) return <Skeleton className="h-96 w-full rounded-xl" />
+
+  const set = (patch: Partial<Institution>) => setForm((f) => (f ? { ...f, ...patch } : f))
+
+  const save = async () => {
+    if (!form.name.trim()) {
+      toast.error('Informe o nome da instituição')
+      return
+    }
+    setSaving(true)
+    try {
+      await institutionService.update(form)
+      toast.success('Dados da instituição salvos')
+    } catch (err) {
+      toast.error('Não foi possível salvar', { description: (err as Error).message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -40,44 +71,53 @@ function InstitutionTab() {
             <Logomark className="size-11" />
           </div>
           <div>
-            <p className="font-display font-semibold">Conect Cursos</p>
+            <p className="font-display font-semibold">{form.name || 'Conect Cursos'}</p>
             <p className="text-sm text-muted-foreground">Conectada ao seu futuro</p>
           </div>
-          <Button variant="outline" size="sm" className="ml-auto">
-            Trocar logo
-          </Button>
         </div>
         <Separator />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field id="inst-name" label="Nome fantasia" defaultValue="Conect Cursos" />
-          <Field id="inst-cnpj" label="CNPJ" defaultValue="12.345.678/0001-90" />
-          <Field id="inst-phone" label="Telefone" defaultValue="(11) 3456-7890" />
-          <Field id="inst-email" label="E-mail" type="email" defaultValue="contato@conectcursos.com" />
+          <Field
+            id="inst-name"
+            label="Nome fantasia"
+            value={form.name}
+            onChange={(e) => set({ name: e.target.value })}
+          />
+          <Field
+            id="inst-cnpj"
+            label="CNPJ"
+            value={form.cnpj}
+            onChange={(e) => set({ cnpj: maskCNPJ(e.target.value) })}
+            placeholder="00.000.000/0000-00"
+          />
+          <Field
+            id="inst-phone"
+            label="Telefone"
+            value={form.phone}
+            onChange={(e) => set({ phone: maskPhone(e.target.value) })}
+            placeholder="(11) 3456-7890"
+          />
+          <Field
+            id="inst-email"
+            label="E-mail"
+            type="email"
+            value={form.email}
+            onChange={(e) => set({ email: e.target.value })}
+            placeholder="contato@conectcursos.com"
+          />
           <div className="sm:col-span-2">
-            <Field id="inst-address" label="Endereço" defaultValue="Av. Paulista, 1000 — São Paulo/SP" />
+            <Field
+              id="inst-address"
+              label="Endereço"
+              value={form.address}
+              onChange={(e) => set({ address: e.target.value })}
+              placeholder="Rua, número — cidade/UF"
+            />
           </div>
         </div>
         <div className="flex justify-end">
-          <Button onClick={() => toast.success('Dados da instituição salvos')}>Salvar alterações</Button>
-        </div>
-        <Separator />
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium">Dados de demonstração</p>
-            <p className="text-sm text-muted-foreground">
-              Restaura alunos, turmas, financeiro e presenças ao estado inicial de exemplo.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            onClick={() => {
-              resetDb()
-              toast.success('Dados restaurados', { description: 'A página será recarregada.' })
-              setTimeout(() => window.location.reload(), 700)
-            }}
-          >
-            <RotateCcwIcon className="size-4" />
-            Restaurar dados de exemplo
+          <Button onClick={save} disabled={saving}>
+            {saving ? 'Salvando…' : 'Salvar alterações'}
           </Button>
         </div>
       </CardContent>
@@ -140,13 +180,39 @@ const notificationDefs = [
   { key: 'resumo', label: 'Resumo diário por e-mail', desc: 'Enviar um panorama do dia todo fim de tarde.' },
 ]
 
+const notificationDefaults: Record<string, boolean> = {
+  inadimplencia: true,
+  faltas: true,
+  reservas: true,
+  resumo: false,
+}
+
 function NotificationsTab() {
-  const [enabled, setEnabled] = useState<Record<string, boolean>>({
-    inadimplencia: true,
-    faltas: true,
-    reservas: true,
-    resumo: false,
-  })
+  const user = useAuth((s) => s.user)
+  const { data } = useAsync(
+    () => (user ? preferencesService.get(user.id) : Promise.resolve({})),
+    [user?.id],
+  )
+  const [enabled, setEnabled] = useState<Record<string, boolean>>(notificationDefaults)
+
+  useEffect(() => {
+    if (data) setEnabled({ ...notificationDefaults, ...data })
+  }, [data])
+
+  const toggle = async (key: string, label: string, value: boolean) => {
+    if (!user) return
+    const previous = enabled
+    const next = { ...enabled, [key]: value }
+    setEnabled(next) // otimista
+    try {
+      await preferencesService.update(user.id, next)
+      toast.success(`${label}: ${value ? 'ativado' : 'desativado'}`)
+    } catch (err) {
+      setEnabled(previous) // desfaz se falhar
+      toast.error('Não foi possível salvar a preferência', { description: (err as Error).message })
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -161,11 +227,8 @@ function NotificationsTab() {
               <p className="text-sm text-muted-foreground">{n.desc}</p>
             </div>
             <Switch
-              checked={enabled[n.key]}
-              onCheckedChange={(v) => {
-                setEnabled((s) => ({ ...s, [n.key]: v }))
-                toast.success(`${n.label}: ${v ? 'ativado' : 'desativado'}`)
-              }}
+              checked={enabled[n.key] ?? false}
+              onCheckedChange={(v) => toggle(n.key, n.label, v)}
               aria-label={n.label}
             />
           </div>
@@ -176,8 +239,47 @@ function NotificationsTab() {
 }
 
 function AccountTab() {
-  const user = useAuth((s) => s.user)
+  const { user, updateProfile, changePassword } = useAuth()
+  const [name, setName] = useState(user?.name ?? '')
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [pass, setPass] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [savingPass, setSavingPass] = useState(false)
   if (!user) return null
+
+  const saveProfile = async () => {
+    if (name.trim().length < 3) {
+      toast.error('Informe seu nome completo')
+      return
+    }
+    setSavingProfile(true)
+    const res = await updateProfile(name.trim())
+    setSavingProfile(false)
+    if (res.ok) toast.success('Perfil atualizado')
+    else toast.error('Não foi possível salvar o perfil', { description: res.error })
+  }
+
+  const savePassword = async () => {
+    if (pass.length < 6) {
+      toast.error('A senha deve ter ao menos 6 caracteres')
+      return
+    }
+    if (pass !== confirm) {
+      toast.error('As senhas não coincidem')
+      return
+    }
+    setSavingPass(true)
+    const res = await changePassword(pass)
+    setSavingPass(false)
+    if (res.ok) {
+      toast.success('Senha alterada', { description: 'Use a nova senha no próximo acesso.' })
+      setPass('')
+      setConfirm('')
+    } else {
+      toast.error('Não foi possível alterar a senha', { description: res.error })
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -199,11 +301,17 @@ function AccountTab() {
           </div>
           <Separator />
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="acc-name" label="Nome" defaultValue={user.name} />
-            <Field id="acc-email" label="E-mail" type="email" defaultValue={user.email} />
+            <Field id="acc-name" label="Nome" value={name} onChange={(e) => setName(e.target.value)} />
+            <div className="space-y-2">
+              <Label htmlFor="acc-email">E-mail (login)</Label>
+              <Input id="acc-email" type="email" value={user.email} readOnly disabled />
+              <p className="text-xs text-muted-foreground">O e-mail é o seu login e não pode ser alterado aqui.</p>
+            </div>
           </div>
           <div className="flex justify-end">
-            <Button onClick={() => toast.success('Perfil atualizado')}>Salvar</Button>
+            <Button onClick={saveProfile} disabled={savingProfile}>
+              {savingProfile ? 'Salvando…' : 'Salvar'}
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -215,12 +323,26 @@ function AccountTab() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field id="acc-pass" label="Nova senha" type="password" placeholder="••••••••" />
-            <Field id="acc-pass2" label="Confirmar senha" type="password" placeholder="••••••••" />
+            <Field
+              id="acc-pass"
+              label="Nova senha"
+              type="password"
+              placeholder="Mínimo de 6 caracteres"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+            />
+            <Field
+              id="acc-pass2"
+              label="Confirmar senha"
+              type="password"
+              placeholder="Repita a senha"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+            />
           </div>
           <div className="flex justify-end">
-            <Button variant="outline" onClick={() => toast.success('Senha alterada')}>
-              Alterar senha
+            <Button variant="outline" onClick={savePassword} disabled={savingPass || !pass}>
+              {savingPass ? 'Alterando…' : 'Alterar senha'}
             </Button>
           </div>
         </CardContent>

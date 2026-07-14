@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select'
 import { classesService, coursesService, roomsService, teachersService } from '@/data/services'
 import { useAsync } from '@/hooks/use-async'
-import type { ClassStatus, WeeklySlot } from '@/data/types'
+import type { Class, ClassStatus, WeeklySlot } from '@/data/types'
 
 const WEEKDAYS = [
   { value: 1, label: 'Segunda' },
@@ -35,31 +35,55 @@ const WEEKDAYS = [
 ]
 
 export function NewClassDialog({
+  klass,
   trigger,
-  onCreated,
+  onSaved,
 }: {
+  /** Quando informada, o diálogo entra em modo de edição. */
+  klass?: Class
   trigger: React.ReactNode
-  onCreated?: () => void
+  onSaved?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const editing = Boolean(klass)
   const { data: courses } = useAsync(() => coursesService.list(), [open])
   const { data: teachers } = useAsync(() => teachersService.list(), [open])
   const { data: rooms } = useAsync(() => roomsService.list(), [open])
 
-  const [courseId, setCourseId] = useState('')
-  const [teacherId, setTeacherId] = useState('')
-  const [roomId, setRoomId] = useState('')
-  const [name, setName] = useState('')
-  const [capacity, setCapacity] = useState('20')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [status, setStatus] = useState<ClassStatus>('planejada')
-  const [slots, setSlots] = useState<WeeklySlot[]>([{ weekday: 1, start: '19:00', end: '22:00' }])
+  const [courseId, setCourseId] = useState(klass?.courseId ?? '')
+  const [teacherId, setTeacherId] = useState(klass?.teacherId ?? '')
+  const [roomId, setRoomId] = useState(klass?.roomId ?? '')
+  const [name, setName] = useState(klass?.name ?? '')
+  const [capacity, setCapacity] = useState(String(klass?.capacity ?? 20))
+  const [startDate, setStartDate] = useState(klass?.startDate ?? '')
+  const [endDate, setEndDate] = useState(klass?.endDate ?? '')
+  const [status, setStatus] = useState<ClassStatus>(klass?.status ?? 'planejada')
+  const [slots, setSlots] = useState<WeeklySlot[]>(
+    klass?.schedule?.length ? klass.schedule : [{ weekday: 1, start: '19:00', end: '22:00' }],
+  )
   const [submitting, setSubmitting] = useState(false)
 
-  // Ao escolher o curso, sugere nome e já preenche o professor do curso.
+  const reset = () => {
+    setCourseId(klass?.courseId ?? '')
+    setTeacherId(klass?.teacherId ?? '')
+    setRoomId(klass?.roomId ?? '')
+    setName(klass?.name ?? '')
+    setCapacity(String(klass?.capacity ?? 20))
+    setStartDate(klass?.startDate ?? '')
+    setEndDate(klass?.endDate ?? '')
+    setStatus(klass?.status ?? 'planejada')
+    setSlots(klass?.schedule?.length ? klass.schedule : [{ weekday: 1, start: '19:00', end: '22:00' }])
+  }
+
+  // Reaplica os valores ao (re)abrir, para não guardar rascunho da vez anterior.
   useEffect(() => {
-    if (!courseId) return
+    if (open) reset()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  // Ao escolher o curso num cadastro novo, sugere o nome e o professor do curso.
+  useEffect(() => {
+    if (!courseId || editing) return
     const course = courses?.find((c) => c.id === courseId)
     if (course) {
       if (!name) setName(`${course.name} — Turma A`)
@@ -67,18 +91,6 @@ export function NewClassDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courseId])
-
-  const reset = () => {
-    setCourseId('')
-    setTeacherId('')
-    setRoomId('')
-    setName('')
-    setCapacity('20')
-    setStartDate('')
-    setEndDate('')
-    setStatus('planejada')
-    setSlots([{ weekday: 1, start: '19:00', end: '22:00' }])
-  }
 
   const setSlot = (i: number, patch: Partial<WeeklySlot>) =>
     setSlots((prev) => prev.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
@@ -92,36 +104,40 @@ export function NewClassDialog({
       return
     }
     setSubmitting(true)
+    const payload = {
+      name: name.trim(),
+      courseId,
+      teacherId,
+      roomId,
+      schedule: slots,
+      startDate,
+      endDate,
+      capacity: Number(capacity) || 0,
+      status,
+    }
     try {
-      await classesService.create({
-        name: name.trim(),
-        courseId,
-        teacherId,
-        roomId,
-        schedule: slots,
-        startDate,
-        endDate,
-        studentIds: [],
-        capacity: Number(capacity) || 0,
-        status,
-      })
-      toast.success('Turma criada', { description: name })
-      reset()
+      if (klass) {
+        await classesService.update(klass.id, payload)
+        toast.success('Turma atualizada', { description: name })
+      } else {
+        await classesService.create({ ...payload, studentIds: [] })
+        toast.success('Turma criada', { description: name })
+      }
       setOpen(false)
-      onCreated?.()
+      onSaved?.()
     } catch (err) {
-      toast.error('Não foi possível criar a turma', { description: (err as Error).message })
+      toast.error('Não foi possível salvar a turma', { description: (err as Error).message })
     } finally {
       setSubmitting(false)
     }
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (setOpen(o), o || reset())}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova turma</DialogTitle>
+          <DialogTitle>{editing ? 'Editar turma' : 'Nova turma'}</DialogTitle>
           <DialogDescription>Vincule curso, professor e sala, e defina os horários.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit} className="space-y-4">
@@ -247,7 +263,7 @@ export function NewClassDialog({
               Cancelar
             </Button>
             <Button type="submit" disabled={submitting}>
-              {submitting ? 'Salvando…' : 'Criar turma'}
+              {submitting ? 'Salvando…' : editing ? 'Salvar' : 'Criar turma'}
             </Button>
           </DialogFooter>
         </form>

@@ -202,6 +202,39 @@ export type Database = {
           },
         ]
       }
+      institution: {
+        Row: {
+          address: string
+          cnpj: string
+          email: string
+          id: boolean
+          logo_url: string | null
+          name: string
+          phone: string
+          updated_at: string
+        }
+        Insert: {
+          address?: string
+          cnpj?: string
+          email?: string
+          id?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          cnpj?: string
+          email?: string
+          id?: boolean
+          logo_url?: string | null
+          name?: string
+          phone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           amount: number
@@ -319,6 +352,7 @@ export type Database = {
           linked_id: string | null
           must_change_password: boolean
           name: string
+          notification_prefs: Json
           role: Database["public"]["Enums"]["role"]
         }
         Insert: {
@@ -329,6 +363,7 @@ export type Database = {
           linked_id?: string | null
           must_change_password?: boolean
           name: string
+          notification_prefs?: Json
           role?: Database["public"]["Enums"]["role"]
         }
         Update: {
@@ -339,6 +374,7 @@ export type Database = {
           linked_id?: string | null
           must_change_password?: boolean
           name?: string
+          notification_prefs?: Json
           role?: Database["public"]["Enums"]["role"]
         }
         Relationships: []

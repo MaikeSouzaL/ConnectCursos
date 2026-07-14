@@ -18,6 +18,10 @@ interface AuthState {
   loginWithPassword: (email: string, password: string) => Promise<LoginResult>
   /** Define nova senha do usuário logado e limpa a obrigatoriedade de troca. */
   changePassword: (newPassword: string) => Promise<{ ok: boolean; error?: string }>
+  /** Atualiza o nome do próprio usuário (perfil + metadados do Auth). */
+  updateProfile: (name: string) => Promise<{ ok: boolean; error?: string }>
+  /** Envia o e-mail de recuperação de senha. */
+  requestPasswordReset: (email: string) => Promise<{ ok: boolean; error?: string }>
   /** Cria o 1º administrador (bootstrap) e já autentica. */
   createAdmin: (name: string, email: string, password: string) => Promise<{ ok: boolean; error?: string }>
   /** Existe algum admin cadastrado? (decide entre configurar e entrar). */
@@ -112,6 +116,25 @@ export const useAuth = create<AuthState>()((set, get) => ({
     }
     const u = get().user
     if (u) set({ user: { ...u, mustChangePassword: false } })
+    return { ok: true }
+  },
+
+  updateProfile: async (name) => {
+    const u = get().user
+    if (!u) return { ok: false, error: 'Sessão expirada' }
+    const { error } = await supabase.from('profiles').update({ name }).eq('id', u.id)
+    if (error) return { ok: false, error: error.message }
+    // Mantém o nome também nos metadados do Auth (usados por gatilhos/futuros e-mails).
+    await supabase.auth.updateUser({ data: { name } })
+    set({ user: { ...u, name } })
+    return { ok: true }
+  },
+
+  requestPasswordReset: async (email) => {
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+      redirectTo: `${window.location.origin}/trocar-senha`,
+    })
+    if (error) return { ok: false, error: error.message }
     return { ok: true }
   },
 

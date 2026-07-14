@@ -200,6 +200,35 @@ function nextDueDate(): { dueDate: string; referenceMonth: string } {
   return { dueDate: `${ymStr}-10`, referenceMonth: ymStr }
 }
 
+/**
+ * Sincroniza o login (Auth) quando o admin corrige o e-mail/nome de um professor
+ * ou aluno — o e-mail é a credencial de acesso. Não faz nada se a pessoa ainda
+ * não tem login ou se nada relevante mudou. Lança se a sincronização falhar.
+ */
+async function syncLogin(
+  table: 'students' | 'teachers',
+  id: string,
+  email?: string,
+  name?: string,
+): Promise<void> {
+  if (email === undefined && name === undefined) return
+  const { data: current } = await supabase
+    .from(table)
+    .select('user_id, email, name')
+    .eq('id', id)
+    .maybeSingle()
+  if (!current?.user_id) return
+
+  const nextEmail = email !== undefined && email !== current.email ? email : undefined
+  const nextName = name !== undefined && name !== current.name ? name : undefined
+  if (!nextEmail && !nextName) return
+
+  const { error } = await supabase.functions.invoke('admin-update-user', {
+    body: { user_id: current.user_id, email: nextEmail, name: nextName },
+  })
+  if (error) throw new Error(await fnError(error, 'Falha ao atualizar o acesso'))
+}
+
 /** classId → studentIds a partir da tabela de matrículas. */
 async function enrollmentsByStudent(): Promise<Map<string, string[]>> {
   const { data } = await supabase.from('class_students').select('class_id, student_id')
@@ -326,6 +355,10 @@ export const studentsService = {
     return { student, tempPassword: (fn as { tempPassword: string }).tempPassword }
   },
   async update(id: string, patch: Partial<Student>): Promise<Student | undefined> {
+    // O e-mail é o login: sincroniza o Auth ANTES de gravar, para não desencontrar
+    // o cadastro do acesso caso a sincronização falhe.
+    await syncLogin('students', id, patch.email, patch.name)
+
     const upd: Tables['students']['Update'] = {}
     if (patch.name !== undefined) upd.name = patch.name
     if (patch.email !== undefined) upd.email = patch.email
@@ -432,6 +465,8 @@ export const teachersService = {
     return { teacher, tempPassword: (fn as { tempPassword: string }).tempPassword }
   },
   async update(id: string, patch: Partial<Teacher>): Promise<Teacher | undefined> {
+    await syncLogin('teachers', id, patch.email, patch.name)
+
     const upd: Tables['teachers']['Update'] = {}
     if (patch.name !== undefined) upd.name = patch.name
     if (patch.email !== undefined) upd.email = patch.email
@@ -623,6 +658,34 @@ export const classesService = {
     classesCache.set(klass.id, klass)
     return klass
   },
+  async update(id: string, patch: Partial<Class>): Promise<Class | undefined> {
+    const upd: Tables['classes']['Update'] = {}
+    if (patch.name !== undefined) upd.name = patch.name
+    if (patch.courseId !== undefined) upd.course_id = patch.courseId || null
+    if (patch.teacherId !== undefined) upd.teacher_id = patch.teacherId || null
+    if (patch.roomId !== undefined) upd.room_id = patch.roomId || null
+    if (patch.schedule !== undefined)
+      upd.schedule = patch.schedule as unknown as Tables['classes']['Update']['schedule']
+    if (patch.startDate !== undefined) upd.start_date = patch.startDate || null
+    if (patch.endDate !== undefined) upd.end_date = patch.endDate || null
+    if (patch.capacity !== undefined) upd.capacity = patch.capacity
+    if (patch.status !== undefined) upd.status = patch.status
+    const { data: row } = await supabase.from('classes').update(upd).eq('id', id).select().single()
+    if (!row) return undefined
+
+    if (patch.studentIds) {
+      await supabase.from('class_students').delete().eq('class_id', id)
+      if (patch.studentIds.length) {
+        await supabase
+          .from('class_students')
+          .insert(patch.studentIds.map((sid) => ({ class_id: id, student_id: sid })))
+      }
+    }
+    const { data: links } = await supabase.from('class_students').select('student_id').eq('class_id', id)
+    const klass = mapClass(row, (links ?? []).map((l) => l.student_id))
+    classesCache.set(klass.id, klass)
+    return klass
+  },
 }
 
 // ————————————————————————————————————— Salas & Agendamentos
@@ -693,6 +756,68 @@ export const roomsService = {
     const room = mapRoom(row)
     roomsCache.set(room.id, room)
     return room
+  },
+}
+
+// ————————————————————————————————————— Instituição (linha única)
+export interface Institution {
+  name: string
+  cnpj: string
+  phone: string
+  email: string
+  address: string
+  logoUrl?: string
+}
+function mapInstitution(r: Tables['institution']['Row'] | null): Institution {
+  return {
+    name: r?.name ?? 'Conect Cursos',
+    cnpj: r?.cnpj ?? '',
+    phone: r?.phone ?? '',
+    email: r?.email ?? '',
+    address: r?.address ?? '',
+    logoUrl: r?.logo_url ?? undefined,
+  }
+}
+export const institutionService = {
+  async get(): Promise<Institution> {
+    const { data } = await supabase.from('institution').select('*').eq('id', true).maybeSingle()
+    return mapInstitution(data)
+  },
+  async update(patch: Partial<Institution>): Promise<Institution> {
+    const upd: Tables['institution']['Update'] = { updated_at: new Date().toISOString() }
+    if (patch.name !== undefined) upd.name = patch.name
+    if (patch.cnpj !== undefined) upd.cnpj = patch.cnpj
+    if (patch.phone !== undefined) upd.phone = patch.phone
+    if (patch.email !== undefined) upd.email = patch.email
+    if (patch.address !== undefined) upd.address = patch.address
+    if (patch.logoUrl !== undefined) upd.logo_url = patch.logoUrl
+    const { data, error } = await supabase
+      .from('institution')
+      .update(upd)
+      .eq('id', true)
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao salvar os dados da instituição')
+    return mapInstitution(data)
+  },
+}
+
+// ————————————————————————————————————— Preferências de notificação (por usuário)
+export const preferencesService = {
+  async get(userId: string): Promise<Record<string, boolean>> {
+    const { data } = await supabase
+      .from('profiles')
+      .select('notification_prefs')
+      .eq('id', userId)
+      .maybeSingle()
+    return (data?.notification_prefs as Record<string, boolean> | null) ?? {}
+  },
+  async update(userId: string, prefs: Record<string, boolean>): Promise<void> {
+    const { error } = await supabase
+      .from('profiles')
+      .update({ notification_prefs: prefs })
+      .eq('id', userId)
+    if (error) throw new Error(error.message)
   },
 }
 

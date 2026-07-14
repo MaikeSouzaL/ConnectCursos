@@ -54,10 +54,17 @@ export function ChangePasswordPage() {
               </div>
               <div>
                 <h1 className="font-display text-xl font-bold">Olá, {firstName}! 👋</h1>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Este é seu primeiro acesso como <strong className="text-foreground">{roleLabel[user.role]}</strong>.
-                  Defina uma nova senha para continuar.
-                </p>
+                {user.mustChangePassword ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Este é seu primeiro acesso como{' '}
+                    <strong className="text-foreground">{roleLabel[user.role]}</strong>. Defina uma nova
+                    senha para continuar.
+                  </p>
+                ) : (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Defina uma nova senha para a sua conta.
+                  </p>
+                )}
               </div>
             </div>
 

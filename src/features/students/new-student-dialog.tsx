@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -29,7 +29,7 @@ import { classesService, coursesService, studentsService } from '@/data/services
 import { formatBRL } from '@/lib/format'
 import { maskCPF, maskPhone } from '@/lib/masks'
 import { formatSchedule } from '@/lib/schedule'
-import type { StudentStatus } from '@/data/types'
+import type { Student, StudentStatus } from '@/data/types'
 
 const schema = z.object({
   name: z.string().min(3, 'Informe o nome completo'),
@@ -42,18 +42,22 @@ const schema = z.object({
 type FormValues = z.input<typeof schema>
 
 export function NewStudentDialog({
+  student,
   trigger,
-  onCreated,
+  onSaved,
 }: {
+  /** Quando informado, o diálogo entra em modo de edição. */
+  student?: Student
   trigger: React.ReactNode
-  onCreated?: () => void
+  onSaved?: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
+  const editing = Boolean(student)
+  const [selectedClasses, setSelectedClasses] = useState<string[]>(student?.classIds ?? [])
   const [credentials, setCredentials] = useState<{ name: string; email: string; password: string } | null>(null)
 
-  const { data: classes } = useAsync(() => classesService.list(''), [])
-  const { data: courses } = useAsync(() => coursesService.list(''), [])
+  const { data: classes } = useAsync(() => classesService.list(''), [open])
+  const { data: courses } = useAsync(() => coursesService.list(''), [open])
 
   const priceByCourse = useMemo(() => {
     const map = new Map<string, number>()
@@ -61,9 +65,15 @@ export function NewStudentDialog({
     return map
   }, [courses])
 
+  // Turmas com vaga — mais as em que o aluno já está (senão sumiriam ao editar).
   const available = useMemo(
-    () => (classes ?? []).filter((c) => c.status !== 'concluida' && c.enrolled < c.capacity),
-    [classes],
+    () =>
+      (classes ?? []).filter(
+        (c) =>
+          c.status !== 'concluida' &&
+          (c.enrolled < c.capacity || (student?.classIds ?? []).includes(c.id)),
+      ),
+    [classes, student],
   )
 
   const monthlyFee = useMemo(
@@ -75,6 +85,15 @@ export function NewStudentDialog({
     [selectedClasses, available, classes, priceByCourse],
   )
 
+  const defaults: FormValues = {
+    name: student?.name ?? '',
+    email: student?.email ?? '',
+    phone: student?.phone ?? '',
+    cpf: student?.cpf ?? '',
+    birthDate: student?.birthDate || '2000-01-01',
+    status: student?.status ?? 'ativo',
+  }
+
   const {
     register,
     handleSubmit,
@@ -82,16 +101,22 @@ export function NewStudentDialog({
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { status: 'ativo', birthDate: '2000-01-01' },
-  })
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: defaults })
+
+  // Reaplica os valores ao (re)abrir, para não guardar rascunho da vez anterior.
+  useEffect(() => {
+    if (open) {
+      reset(defaults)
+      setSelectedClasses(student?.classIds ?? [])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const toggleClass = (id: string, checked: boolean) =>
     setSelectedClasses((s) => (checked ? [...s, id] : s.filter((x) => x !== id)))
 
   const onSubmit = handleSubmit(async (values) => {
-    const { tempPassword } = await studentsService.create({
+    const payload = {
       name: values.name,
       email: values.email,
       phone: values.phone,
@@ -100,19 +125,31 @@ export function NewStudentDialog({
       monthlyFee,
       status: values.status as StudentStatus,
       classIds: selectedClasses,
-    })
-    toast.success('Aluno cadastrado', {
-      description: selectedClasses.length
-        ? `${values.name} · matriculado em ${selectedClasses.length} turma(s)`
-        : values.name,
-    })
-    setCredentials({ name: values.name, email: values.email, password: tempPassword })
-    onCreated?.()
+    }
+    try {
+      if (student) {
+        await studentsService.update(student.id, payload)
+        toast.success('Aluno atualizado', { description: values.name })
+        setOpen(false)
+        onSaved?.()
+        return
+      }
+      const { tempPassword } = await studentsService.create(payload)
+      toast.success('Aluno cadastrado', {
+        description: selectedClasses.length
+          ? `${values.name} · matriculado em ${selectedClasses.length} turma(s)`
+          : values.name,
+      })
+      setCredentials({ name: values.name, email: values.email, password: tempPassword })
+      onSaved?.()
+    } catch (err) {
+      toast.error('Não foi possível salvar o aluno', { description: (err as Error).message })
+    }
   })
 
   const finish = () => {
-    reset()
-    setSelectedClasses([])
+    reset(defaults)
+    setSelectedClasses(student?.classIds ?? [])
     setCredentials(null)
     setOpen(false)
   }
@@ -131,8 +168,12 @@ export function NewStudentDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Novo aluno</DialogTitle>
-              <DialogDescription>Cadastre e matricule um aluno na Conect Cursos.</DialogDescription>
+              <DialogTitle>{editing ? 'Editar aluno' : 'Novo aluno'}</DialogTitle>
+              <DialogDescription>
+                {editing
+                  ? 'Atualize os dados e as matrículas. Alterar o e-mail também altera o login dele.'
+                  : 'Cadastre e matricule um aluno na Conect Cursos.'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -240,7 +281,7 @@ export function NewStudentDialog({
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Salvando…' : 'Cadastrar aluno'}
+                  {isSubmitting ? 'Salvando…' : editing ? 'Salvar' : 'Cadastrar aluno'}
                 </Button>
               </DialogFooter>
             </form>

@@ -9,6 +9,7 @@ import {
   DoorOpenIcon,
   GraduationCapIcon,
   MailIcon,
+  PencilIcon,
   PhoneIcon,
   UserSquareIcon,
   UsersIcon,
@@ -29,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { NewTeacherDialog } from '@/features/teachers/new-teacher-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, roomName, teachersService } from '@/data/services'
 import { formatBRL, formatDate, initials } from '@/lib/format'
@@ -96,12 +98,24 @@ export function TeacherDetailPage() {
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
-        <Link to="/admin/professores">
-          <ArrowLeftIcon className="size-4" />
-          Professores
-        </Link>
-      </Button>
+      <div className="flex items-center justify-between gap-3">
+        <Button variant="ghost" size="sm" asChild className="-ml-2 w-fit text-muted-foreground">
+          <Link to="/admin/professores">
+            <ArrowLeftIcon className="size-4" />
+            Professores
+          </Link>
+        </Button>
+        <NewTeacherDialog
+          teacher={teacher}
+          onSaved={() => setReload((r) => r + 1)}
+          trigger={
+            <Button variant="outline" size="sm">
+              <PencilIcon className="size-4" />
+              Editar
+            </Button>
+          }
+        />
+      </div>
 
       {/* Cabeçalho do professor */}
       <Card>

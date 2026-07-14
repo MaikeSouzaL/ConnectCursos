@@ -72,7 +72,7 @@ export function StudentsPage() {
         description="Gerencie matrículas, situação financeira e presença."
         actions={
           <NewStudentDialog
-            onCreated={() => setReload((r) => r + 1)}
+            onSaved={() => setReload((r) => r + 1)}
             trigger={
               <Button size="sm">
                 <UserPlusIcon className="size-4" />

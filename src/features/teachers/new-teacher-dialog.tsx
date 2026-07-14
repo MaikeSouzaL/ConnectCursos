@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -25,7 +25,7 @@ import {
 import { CredentialsSuccess } from '@/features/auth/credentials-success'
 import { teachersService } from '@/data/services'
 import { maskPhone } from '@/lib/masks'
-import type { TeacherStatus } from '@/data/types'
+import type { PaymentStatus, Teacher, TeacherStatus } from '@/data/types'
 
 const schema = z.object({
   name: z.string().min(3, 'Informe o nome completo'),
@@ -34,18 +34,34 @@ const schema = z.object({
   specialty: z.string().min(2, 'Informe a especialidade'),
   monthlyRent: z.coerce.number().min(0, 'Valor inválido'),
   status: z.enum(['ativo', 'inativo']),
+  rentStatus: z.enum(['pago', 'pendente', 'atrasado']),
 })
 type FormValues = z.input<typeof schema>
 
 export function NewTeacherDialog({
+  teacher,
   trigger,
-  onCreated,
+  onSaved,
 }: {
+  /** Quando informado, o diálogo entra em modo de edição. */
+  teacher?: Teacher
   trigger: React.ReactNode
-  onCreated?: () => void
+  onSaved?: () => void
 }) {
   const [open, setOpen] = useState(false)
+  const editing = Boolean(teacher)
   const [credentials, setCredentials] = useState<{ name: string; email: string; password: string } | null>(null)
+
+  const defaults: FormValues = {
+    name: teacher?.name ?? '',
+    email: teacher?.email ?? '',
+    phone: teacher?.phone ?? '',
+    specialty: teacher?.specialty ?? '',
+    monthlyRent: teacher?.monthlyRent ?? 500,
+    status: teacher?.status ?? 'ativo',
+    rentStatus: teacher?.rentStatus ?? 'pendente',
+  }
+
   const {
     register,
     handleSubmit,
@@ -53,24 +69,45 @@ export function NewTeacherDialog({
     setValue,
     watch,
     formState: { errors, isSubmitting },
-  } = useForm<FormValues>({
-    resolver: zodResolver(schema),
-    defaultValues: { status: 'ativo', monthlyRent: 500 },
-  })
+  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: defaults })
+
+  useEffect(() => {
+    if (open) reset(defaults)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
 
   const onSubmit = handleSubmit(async (values) => {
-    const { tempPassword } = await teachersService.create({
-      name: values.name,
-      email: values.email,
-      phone: values.phone,
-      specialty: values.specialty,
-      monthlyRent: Number(values.monthlyRent),
-      status: values.status as TeacherStatus,
-      rentStatus: 'pendente',
-    })
-    toast.success('Professor cadastrado', { description: values.name })
-    setCredentials({ name: values.name, email: values.email, password: tempPassword })
-    onCreated?.()
+    try {
+      if (teacher) {
+        await teachersService.update(teacher.id, {
+          name: values.name,
+          email: values.email,
+          phone: values.phone,
+          specialty: values.specialty,
+          monthlyRent: Number(values.monthlyRent),
+          status: values.status as TeacherStatus,
+          rentStatus: values.rentStatus as PaymentStatus,
+        })
+        toast.success('Professor atualizado', { description: values.name })
+        setOpen(false)
+        onSaved?.()
+        return
+      }
+      const { tempPassword } = await teachersService.create({
+        name: values.name,
+        email: values.email,
+        phone: values.phone,
+        specialty: values.specialty,
+        monthlyRent: Number(values.monthlyRent),
+        status: values.status as TeacherStatus,
+        rentStatus: 'pendente',
+      })
+      toast.success('Professor cadastrado', { description: values.name })
+      setCredentials({ name: values.name, email: values.email, password: tempPassword })
+      onSaved?.()
+    } catch (err) {
+      toast.error('Não foi possível salvar o professor', { description: (err as Error).message })
+    }
   })
 
   const finish = () => {
@@ -93,8 +130,12 @@ export function NewTeacherDialog({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Novo professor</DialogTitle>
-              <DialogDescription>Cadastre um professor na Conect Cursos.</DialogDescription>
+              <DialogTitle>{editing ? 'Editar professor' : 'Novo professor'}</DialogTitle>
+              <DialogDescription>
+                {editing
+                  ? 'Atualize os dados. Alterar o e-mail também altera o login dele.'
+                  : 'Cadastre um professor na Conect Cursos.'}
+              </DialogDescription>
             </DialogHeader>
             <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -147,12 +188,30 @@ export function NewTeacherDialog({
               </Select>
             </div>
           </div>
+          {editing && (
+            <div className="space-y-2">
+              <Label>Situação do aluguel</Label>
+              <Select
+                value={watch('rentStatus')}
+                onValueChange={(v) => setValue('rentStatus', v as FormValues['rentStatus'])}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
               <DialogFooter>
                 <Button type="button" variant="ghost" onClick={finish}>
                   Cancelar
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Salvando…' : 'Cadastrar professor'}
+                  {isSubmitting ? 'Salvando…' : editing ? 'Salvar' : 'Cadastrar professor'}
                 </Button>
               </DialogFooter>
             </form>

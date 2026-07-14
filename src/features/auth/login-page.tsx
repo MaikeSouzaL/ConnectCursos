@@ -16,7 +16,7 @@ const highlights = [
 ]
 
 export function LoginPage() {
-  const { loginWithPassword, createAdmin, adminExists } = useAuth()
+  const { loginWithPassword, createAdmin, adminExists, requestPasswordReset } = useAuth()
   const navigate = useNavigate()
 
   // null = ainda verificando se existe admin
@@ -46,6 +46,26 @@ export function LoginPage() {
     } else {
       const user = useAuth.getState().user
       navigate(user ? homeFor(user.role) : '/')
+    }
+  }
+
+  /** Envia o link de redefinição para o e-mail digitado. */
+  const forgotPassword = async () => {
+    if (!email.trim()) {
+      toast.error('Informe seu e-mail', {
+        description: 'Digite o e-mail no campo acima para receber o link de redefinição.',
+      })
+      return
+    }
+    setSubmitting(true)
+    const res = await requestPasswordReset(email)
+    setSubmitting(false)
+    if (res.ok) {
+      toast.success('Link enviado!', {
+        description: `Enviamos um e-mail para ${email.trim()} com o link para criar uma nova senha.`,
+      })
+    } else {
+      toast.error('Não foi possível enviar o link', { description: res.error })
     }
   }
 
@@ -195,7 +215,12 @@ export function LoginPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Senha</Label>
-                    <button type="button" className="text-xs font-medium text-primary hover:underline">
+                    <button
+                      type="button"
+                      onClick={forgotPassword}
+                      disabled={submitting}
+                      className="text-xs font-medium text-primary hover:underline disabled:opacity-50"
+                    >
                       Esqueceu a senha?
                     </button>
                   </div>
