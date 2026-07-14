@@ -663,8 +663,8 @@ export const roomsService = {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Serviços ainda em mock (migram nos blocos B5/B6): presença, financeiro,
-// dashboard, chat e notas fiscais.
+// Presença, financeiro e dashboard já no Supabase. Chat e notas fiscais
+// seguem em mock até o B6.
 // ═══════════════════════════════════════════════════════════════════════════
 
 function mapPayment(r: Tables['payments']['Row']): Payment {
@@ -696,7 +696,7 @@ function mapAttendance(r: Tables['attendance']['Row']): AttendanceRecord {
   }
 }
 
-// ————————————————————————————————————— Presença (mock)
+// ————————————————————————————————————— Presença (Supabase)
 export interface TodayStatus {
   state: 'nenhum' | 'dentro' | 'completo'
   checkInAt?: string
@@ -710,33 +710,63 @@ export interface ScanResult {
 
 export const attendanceService = {
   async byClassAndDate(classId: string, date: string): Promise<AttendanceRecord[]> {
-    const out = db.attendance.filter((a) => a.classId === classId && a.date === date)
-    return delay(clone(out))
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('class_id', classId)
+      .eq('date', date)
+    return (data ?? []).map(mapAttendance)
   },
   async byDate(date: string): Promise<AttendanceRecord[]> {
-    const out = db.attendance
-      .filter((a) => a.date === date && a.personRole === 'aluno')
-      .sort((a, b) => (b.checkInAt ?? '').localeCompare(a.checkInAt ?? ''))
-    return delay(clone(out))
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('date', date)
+      .eq('person_role', 'aluno')
+      .order('check_in_at', { ascending: false })
+    return (data ?? []).map(mapAttendance)
   },
   async byPerson(personId: string): Promise<AttendanceRecord[]> {
-    return delay(clone(db.attendance.filter((a) => a.personId === personId)))
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('person_id', personId)
+      .order('date', { ascending: false })
+    return (data ?? []).map(mapAttendance)
   },
   async checkIn(record: Omit<AttendanceRecord, 'id'>): Promise<AttendanceRecord> {
-    const rec: AttendanceRecord = { ...record, id: `att_${pad(db.attendance.length + 1)}` }
-    db.attendance.push(rec)
-    return delay(clone(rec))
+    const { data, error } = await supabase
+      .from('attendance')
+      .insert({
+        person_id: record.personId,
+        person_role: record.personRole,
+        class_id: record.classId ?? null,
+        date: record.date,
+        check_in_at: record.checkInAt ?? null,
+        check_out_at: record.checkOutAt ?? null,
+        method: record.method,
+        status: record.status,
+      })
+      .select()
+      .single()
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao registrar presença')
+    return mapAttendance(data)
   },
   async todayStatus(personId: string, role: 'aluno' | 'professor' = 'aluno'): Promise<TodayStatus> {
     const date = ymd(new Date())
-    const rec = db.attendance.find(
-      (a) => a.personId === personId && a.date === date && a.personRole === role,
-    )
-    if (!rec || !rec.checkInAt) return delay({ state: 'nenhum' })
-    if (rec.checkInAt && !rec.checkOutAt)
-      return delay({ state: 'dentro', checkInAt: rec.checkInAt })
-    return delay({ state: 'completo', checkInAt: rec.checkInAt, checkOutAt: rec.checkOutAt })
+    const { data } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('person_id', personId)
+      .eq('date', date)
+      .eq('person_role', role)
+      .maybeSingle()
+    if (!data || !data.check_in_at) return { state: 'nenhum' }
+    if (data.check_in_at && !data.check_out_at)
+      return { state: 'dentro', checkInAt: data.check_in_at }
+    return { state: 'completo', checkInAt: data.check_in_at, checkOutAt: data.check_out_at ?? undefined }
   },
+  /** 1ª leitura do dia = entrada; 2ª = saída; depois = já completo. */
   async registerScan(
     personId: string,
     at: string = new Date().toISOString(),
@@ -745,48 +775,83 @@ export const attendanceService = {
     const when = new Date(at)
     const date = ymd(when)
     const weekday = when.getDay()
-    let rec = db.attendance.find(
-      (a) => a.personId === personId && a.date === date && a.personRole === role,
-    )
-    if (!rec || !rec.checkInAt) {
-      if (!rec) {
-        let classId: string | undefined
-        if (role === 'aluno') {
-          const student = db.students.find((s) => s.id === personId)
+    const { data: existing } = await supabase
+      .from('attendance')
+      .select('*')
+      .eq('person_id', personId)
+      .eq('date', date)
+      .eq('person_role', role)
+      .maybeSingle()
+
+    if (!existing) {
+      // Descobre a turma do dia (pela grade da semana).
+      let classId: string | undefined
+      if (role === 'aluno') {
+        const { data: links } = await supabase
+          .from('class_students')
+          .select('class_id')
+          .eq('student_id', personId)
+        const classIds = (links ?? []).map((l) => l.class_id)
+        if (classIds.length) {
+          const { data: classes } = await supabase
+            .from('classes')
+            .select('id, schedule')
+            .in('id', classIds)
           classId =
-            student?.classIds.find((cid) =>
-              db.classes.find((c) => c.id === cid)?.schedule.some((s) => s.weekday === weekday),
-            ) ?? student?.classIds[0]
-        } else {
-          classId =
-            db.classes.find(
-              (c) => c.teacherId === personId && c.schedule.some((s) => s.weekday === weekday),
-            )?.id ?? db.classes.find((c) => c.teacherId === personId)?.id
+            classes?.find((c) =>
+              (c.schedule as unknown as WeeklySlot[]).some((s) => s.weekday === weekday),
+            )?.id ?? classIds[0]
         }
-        rec = {
-          id: `att_${pad(db.attendance.length + 1)}`,
-          personId,
-          personRole: role,
-          classId,
+      } else {
+        const { data: classes } = await supabase
+          .from('classes')
+          .select('id, schedule')
+          .eq('teacher_id', personId)
+        classId =
+          classes?.find((c) =>
+            (c.schedule as unknown as WeeklySlot[]).some((s) => s.weekday === weekday),
+          )?.id ?? classes?.[0]?.id
+      }
+      const { data: inserted, error } = await supabase
+        .from('attendance')
+        .insert({
+          person_id: personId,
+          person_role: role,
+          class_id: classId ?? null,
           date,
+          check_in_at: at,
           method: 'qr',
           status: 'presente',
-        }
-        db.attendance.push(rec)
-      }
-      rec.checkInAt = at
-      rec.status = 'presente'
-      return delay({ action: 'entrada', at, record: clone(rec) })
+        })
+        .select()
+        .single()
+      if (error || !inserted) throw new Error(error?.message ?? 'Falha ao registrar entrada')
+      return { action: 'entrada', at, record: mapAttendance(inserted) }
     }
-    if (rec.checkInAt && !rec.checkOutAt) {
-      rec.checkOutAt = at
-      return delay({ action: 'saida', at, record: clone(rec) })
+
+    if (!existing.check_in_at) {
+      const { data: updated } = await supabase
+        .from('attendance')
+        .update({ check_in_at: at, status: 'presente' })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      return { action: 'entrada', at, record: mapAttendance(updated ?? existing) }
     }
-    return delay({ action: 'completo', at: rec.checkOutAt ?? at, record: clone(rec) })
+    if (!existing.check_out_at) {
+      const { data: updated } = await supabase
+        .from('attendance')
+        .update({ check_out_at: at })
+        .eq('id', existing.id)
+        .select()
+        .single()
+      return { action: 'saida', at, record: mapAttendance(updated ?? existing) }
+    }
+    return { action: 'completo', at: existing.check_out_at ?? at, record: mapAttendance(existing) }
   },
 }
 
-// ————————————————————————————————————— Financeiro (mock)
+// ————————————————————————————————————— Financeiro (Supabase)
 export interface FinanceSummary {
   revenue: number
   expense: number
@@ -802,21 +867,34 @@ export interface PaymentFilters {
 }
 export const financeService = {
   async list(filters: PaymentFilters = {}): Promise<Payment[]> {
-    let out = db.payments
-    if (filters.kind && filters.kind !== 'todos') out = out.filter((p) => p.kind === filters.kind)
-    if (filters.status && filters.status !== 'todos') out = out.filter((p) => p.status === filters.status)
-    if (filters.month) out = out.filter((p) => p.referenceMonth === filters.month)
-    out = [...out].sort((a, b) => b.dueDate.localeCompare(a.dueDate))
-    return delay(clone(out))
+    let q = supabase.from('payments').select('*')
+    if (filters.kind && filters.kind !== 'todos') q = q.eq('kind', filters.kind)
+    if (filters.status && filters.status !== 'todos') q = q.eq('status', filters.status)
+    if (filters.month) q = q.eq('reference_month', filters.month)
+    const { data } = await q.order('due_date', { ascending: false })
+    return (data ?? []).map(mapPayment)
   },
   async receivables(): Promise<Payment[]> {
-    return delay(clone(db.payments.filter((p) => p.kind !== 'despesa' && p.status !== 'pago')))
+    const { data } = await supabase
+      .from('payments')
+      .select('*')
+      .neq('kind', 'despesa')
+      .neq('status', 'pago')
+      .order('due_date')
+    return (data ?? []).map(mapPayment)
   },
   async payables(): Promise<Payment[]> {
-    return delay(clone(db.payments.filter((p) => p.kind === 'despesa' && p.status !== 'pago')))
+    const { data } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('kind', 'despesa')
+      .neq('status', 'pago')
+      .order('due_date')
+    return (data ?? []).map(mapPayment)
   },
   async summary(month = THIS_MONTH): Promise<FinanceSummary> {
-    const monthly = db.payments.filter((p) => p.referenceMonth === month)
+    const { data } = await supabase.from('payments').select('*').eq('reference_month', month)
+    const monthly = (data ?? []).map(mapPayment)
     const revenue = sum(
       monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => p.amount),
     )
@@ -827,62 +905,71 @@ export const financeService = {
     const pending = sum(
       monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pendente').map((p) => p.amount),
     )
-    return delay({
+    return {
       revenue,
       expense,
       net: revenue - expense,
       overdue: sum(overdueList.map((p) => p.amount)),
       overdueCount: overdueList.length,
       pending,
-    })
+    }
   },
   async markPaid(id: string): Promise<Payment | undefined> {
-    const p = db.payments.find((x) => x.id === id)
-    if (p) {
-      p.status = 'pago'
-      p.paidAt = new Date().toISOString()
-      p.method = p.method ?? 'pix'
-    }
-    return delay(clone(p))
+    const { data: cur } = await supabase.from('payments').select('method').eq('id', id).maybeSingle()
+    const { data } = await supabase
+      .from('payments')
+      .update({ status: 'pago', paid_at: new Date().toISOString(), method: cur?.method ?? 'pix' })
+      .eq('id', id)
+      .select()
+      .single()
+    return data ? mapPayment(data) : undefined
   },
   async create(data: Omit<Payment, 'id'>): Promise<Payment> {
-    const payment: Payment = { ...data, id: `pay_${pad(db.payments.length + 1)}` }
-    db.payments.push(payment)
-    return delay(clone(payment))
+    const { data: row, error } = await supabase
+      .from('payments')
+      .insert({
+        kind: data.kind,
+        person_id: data.personId ?? null,
+        description: data.description,
+        amount: data.amount,
+        due_date: data.dueDate,
+        paid_at: data.paidAt ?? null,
+        status: data.status,
+        method: data.method ?? null,
+        reference_month: data.referenceMonth,
+        category: data.category ?? null,
+      })
+      .select()
+      .single()
+    if (error || !row) throw new Error(error?.message ?? 'Falha ao lançar')
+    return mapPayment(row)
   },
-  async cashFlow(openingBalance = 8000): Promise<CashFlowPoint[]> {
+  /** Fluxo de caixa real do ano corrente, mês a mês, a partir dos pagamentos. */
+  async cashFlow(openingBalance = 0): Promise<CashFlowPoint[]> {
     const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
-    const now = TODAY
-    const year = now.getFullYear()
-    const cm = now.getMonth()
-    const monthly = db.payments.filter((p) => p.referenceMonth === THIS_MONTH)
-    const realIn = sum(
-      monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => p.amount),
-    )
-    const realOut = sum(
-      monthly.filter((p) => p.kind === 'despesa' && p.status === 'pago').map((p) => p.amount),
-    )
+    const year = TODAY.getFullYear()
+    const cm = TODAY.getMonth()
+    const { data } = await supabase
+      .from('payments')
+      .select('*')
+      .gte('reference_month', `${year}-01`)
+      .lte('reference_month', `${year}-12`)
+    const payments = (data ?? []).map(mapPayment)
     let saldo = openingBalance
     const out: CashFlowPoint[] = []
     for (let i = 0; i < 12; i++) {
       const ymStr = `${year}-${pad(i + 1)}`
-      if (i > cm) {
-        out.push({ month: MONTHS[i], ym: ymStr, entradas: 0, saidas: 0, saldo, realizado: false })
-        continue
-      }
-      let entradas: number
-      let saidas: number
-      if (i === cm) {
-        entradas = realIn
-        saidas = realOut
-      } else {
-        entradas = Math.round(38000 * (0.82 + i * 0.03) + (i % 2 ? 1600 : -900))
-        saidas = Math.round(14000 * (0.9 + i * 0.015) + (i % 2 ? -500 : 700))
-      }
+      const monthP = payments.filter((p) => p.referenceMonth === ymStr)
+      const entradas = sum(
+        monthP.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => p.amount),
+      )
+      const saidas = sum(
+        monthP.filter((p) => p.kind === 'despesa' && p.status === 'pago').map((p) => p.amount),
+      )
       saldo += entradas - saidas
-      out.push({ month: MONTHS[i], ym: ymStr, entradas, saidas, saldo, realizado: true })
+      out.push({ month: MONTHS[i], ym: ymStr, entradas, saidas, saldo, realizado: i <= cm })
     }
-    return delay(out)
+    return out
   },
 }
 
@@ -989,90 +1076,111 @@ export const invoicesService = {
   },
 }
 
-// ————————————————————————————————————— Dashboard (mock)
+// ————————————————————————————————————— Dashboard (Supabase)
 export interface TodayAgendaItem extends RoomBooking {
   roomName: string
 }
 export const dashboardService = {
   async kpis(): Promise<DashboardKpis> {
-    const activeStudents = db.students.filter(
-      (s) => s.status === 'ativo' || s.status === 'inadimplente',
-    ).length
-    const dates = [...new Set(db.attendance.map((a) => a.date))].sort().reverse()
+    const [students, attendance, payments, bookings, classes, teachers, rooms] = await Promise.all([
+      supabase.from('students').select('status'),
+      supabase.from('attendance').select('date, person_role, status'),
+      supabase.from('payments').select('kind, status, amount, reference_month'),
+      supabase.from('room_bookings').select('date, start_time, end_time'),
+      supabase.from('classes').select('status'),
+      supabase.from('teachers').select('status'),
+      supabase.from('rooms').select('id'),
+    ])
+    const srows = students.data ?? []
+    const activeStudents = srows.filter((s) => s.status === 'ativo' || s.status === 'inadimplente').length
+
+    const arows = attendance.data ?? []
+    const dates = [...new Set(arows.map((a) => a.date))].sort().reverse()
     const lastDate = dates[0]
-    const dayRecs = db.attendance.filter((a) => a.date === lastDate && a.personRole === 'aluno')
+    const dayRecs = arows.filter((a) => a.date === lastDate && a.person_role === 'aluno')
     const present = dayRecs.filter((a) => a.status === 'presente' || a.status === 'atrasado').length
     const presenceTodayRate = dayRecs.length ? Math.round((present / dayRecs.length) * 100) : 0
-    const overdueList = db.payments.filter(
-      (p) => p.kind === 'mensalidade' && p.status === 'atrasado',
-    )
-    const monthly = db.payments.filter((p) => p.referenceMonth === THIS_MONTH)
+
+    const prows = payments.data ?? []
+    const overdueList = prows.filter((p) => p.kind === 'mensalidade' && p.status === 'atrasado')
+    const monthly = prows.filter((p) => p.reference_month === THIS_MONTH)
     const monthlyRevenue = sum(
-      monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => p.amount),
+      monthly.filter((p) => p.kind !== 'despesa' && p.status === 'pago').map((p) => num(p.amount)),
     )
     const monthlyExpense = sum(
-      monthly.filter((p) => p.kind === 'despesa' && p.status === 'pago').map((p) => p.amount),
+      monthly.filter((p) => p.kind === 'despesa' && p.status === 'pago').map((p) => num(p.amount)),
     )
+
     const weekStart = new Date(TODAY)
     weekStart.setDate(TODAY.getDate() - TODAY.getDay())
-    const weekBookings = db.bookings.filter((b) => b.date >= ymd(weekStart))
+    const weekBookings = (bookings.data ?? []).filter((b) => b.date >= ymd(weekStart))
     const bookedHours = sum(
       weekBookings.map((b) => {
-        const [sh, sm] = b.start.split(':').map(Number)
-        const [eh, em] = b.end.split(':').map(Number)
+        const [sh, sm] = b.start_time.split(':').map(Number)
+        const [eh, em] = b.end_time.split(':').map(Number)
         return eh + em / 60 - (sh + sm / 60)
       }),
     )
-    const availableHours = db.rooms.length * 12 * 6
+    const availableHours = (rooms.data?.length ?? 0) * 12 * 6
     const roomOccupancyRate = availableHours ? Math.round((bookedHours / availableHours) * 100) : 0
-    return delay({
+
+    return {
       activeStudents,
-      studentsTrend: 8.2,
+      studentsTrend: 0,
       presenceTodayRate,
-      overdueAmount: sum(overdueList.map((p) => p.amount)),
+      overdueAmount: sum(overdueList.map((p) => num(p.amount))),
       overdueCount: overdueList.length,
       monthlyRevenue,
-      revenueTrend: 12.4,
+      revenueTrend: 0,
       monthlyExpense,
       netResult: monthlyRevenue - monthlyExpense,
       roomOccupancyRate,
-      activeClasses: db.classes.filter((c) => c.status === 'em_andamento').length,
-      activeTeachers: db.teachers.filter((t) => t.status === 'ativo').length,
-    })
+      activeClasses: (classes.data ?? []).filter((c) => c.status === 'em_andamento').length,
+      activeTeachers: (teachers.data ?? []).filter((t) => t.status === 'ativo').length,
+    }
   },
 
   async revenueSeries(): Promise<RevenueSeriesPoint[]> {
-    const labels = ['Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul']
-    const baseRev = 42000
-    const baseExp = 15000
-    return delay(
-      labels.map((month, i) => ({
-        month,
-        receita: Math.round(baseRev * (0.86 + i * 0.045) + (i % 2 ? 1800 : -900)),
-        despesa: Math.round(baseExp * (0.92 + i * 0.02) + (i % 2 ? -600 : 700)),
-      })),
-    )
+    const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+    const { data } = await supabase.from('payments').select('amount, kind, status, reference_month')
+    const rows = data ?? []
+    const out: RevenueSeriesPoint[] = []
+    for (let k = 5; k >= 0; k--) {
+      const d = new Date(TODAY.getFullYear(), TODAY.getMonth() - k, 1)
+      const key = ym(d)
+      const monthP = rows.filter((p) => p.reference_month === key && p.status === 'pago')
+      out.push({
+        month: MONTHS[d.getMonth()],
+        receita: sum(monthP.filter((p) => p.kind !== 'despesa').map((p) => num(p.amount))),
+        despesa: sum(monthP.filter((p) => p.kind === 'despesa').map((p) => num(p.amount))),
+      })
+    }
+    return out
   },
 
   async attendanceSeries(): Promise<AttendanceSeriesPoint[]> {
-    const dates = [...new Set(db.attendance.map((a) => a.date))].sort().slice(-7)
-    return delay(
-      dates.map((date) => {
-        const recs = db.attendance.filter((a) => a.date === date && a.personRole === 'aluno')
-        const [, m, d] = date.split('-')
-        return {
-          day: `${d}/${m}`,
-          presenca: recs.filter((a) => a.status === 'presente' || a.status === 'atrasado').length,
-          falta: recs.filter((a) => a.status === 'falta').length,
-        }
-      }),
-    )
+    const { data } = await supabase.from('attendance').select('date, person_role, status')
+    const rows = (data ?? []).filter((a) => a.person_role === 'aluno')
+    const dates = [...new Set(rows.map((a) => a.date))].sort().slice(-7)
+    return dates.map((date) => {
+      const recs = rows.filter((a) => a.date === date)
+      const [, m, d] = date.split('-')
+      return {
+        day: `${d}/${m}`,
+        presenca: recs.filter((a) => a.status === 'presente' || a.status === 'atrasado').length,
+        falta: recs.filter((a) => a.status === 'falta').length,
+      }
+    })
   },
 
   async alerts(): Promise<Alert[]> {
+    const [students, teachers, bookings] = await Promise.all([
+      supabase.from('students').select('id, name').eq('status', 'inadimplente').limit(4),
+      supabase.from('teachers').select('id, name').eq('rent_status', 'atrasado').limit(2),
+      supabase.from('room_bookings').select('id, title, room_id').eq('status', 'pendente').limit(2),
+    ])
     const alerts: Alert[] = []
-    const overdueStudents = db.students.filter((s) => s.status === 'inadimplente').slice(0, 4)
-    overdueStudents.forEach((s) => {
+    ;(students.data ?? []).forEach((s) => {
       alerts.push({
         id: `al_${s.id}`,
         kind: 'inadimplencia',
@@ -1082,39 +1190,36 @@ export const dashboardService = {
         at: new Date().toISOString(),
       })
     })
-    db.teachers
-      .filter((t) => t.rentStatus === 'atrasado')
-      .slice(0, 2)
-      .forEach((t) => {
-        alerts.push({
-          id: `al_${t.id}`,
-          kind: 'aluguel',
-          severity: 'warning',
-          title: 'Aluguel de sala pendente',
-          description: `${t.name} está com o aluguel da sala em atraso.`,
-          at: new Date().toISOString(),
-        })
+    ;(teachers.data ?? []).forEach((t) => {
+      alerts.push({
+        id: `al_${t.id}`,
+        kind: 'aluguel',
+        severity: 'warning',
+        title: 'Aluguel de sala pendente',
+        description: `${t.name} está com o aluguel da sala em atraso.`,
+        at: new Date().toISOString(),
       })
-    const pendingBookings = db.bookings.filter((b) => b.status === 'pendente').slice(0, 2)
-    pendingBookings.forEach((b) => {
+    })
+    ;(bookings.data ?? []).forEach((b) => {
       alerts.push({
         id: `al_${b.id}`,
         kind: 'sala',
         severity: 'info',
         title: 'Reserva de sala a confirmar',
-        description: `${b.title} (${roomName(b.roomId)}) aguarda confirmação.`,
+        description: `${b.title} (${roomName(b.room_id)}) aguarda confirmação.`,
         at: new Date().toISOString(),
       })
     })
-    return delay(alerts)
+    return alerts
   },
 
   async todayAgenda(): Promise<TodayAgendaItem[]> {
     const today = ymd(TODAY)
-    const items = db.bookings
-      .filter((b) => b.date === today)
-      .sort((a, b) => a.start.localeCompare(b.start))
-      .map((b) => ({ ...b, roomName: roomName(b.roomId) }))
-    return delay(clone(items))
+    const { data } = await supabase
+      .from('room_bookings')
+      .select('*')
+      .eq('date', today)
+      .order('start_time')
+    return (data ?? []).map((b) => ({ ...mapBooking(b), roomName: roomName(b.room_id) }))
   },
 }
