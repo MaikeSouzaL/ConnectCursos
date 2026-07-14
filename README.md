@@ -93,8 +93,13 @@ select md5(string_agg(a, E'\n' order by a)) from (
   union all select 'func:'||n.nspname||'.'||p.proname
     from pg_proc p join pg_namespace n on n.oid=p.pronamespace
     where n.nspname in ('private','public') and p.prokind='f'
+  union all select 'index:'||schemaname||'.'||indexname
+    from pg_indexes where schemaname='public'
 ) t;
 ```
+
+As **edge functions não entram no hash** — compare à parte pelo painel; hoje são
+quatro: `create-admin`, `admin-create-user`, `admin-update-user` e `send-push`.
 
 > O projeto de dev é do plano free: ele hiberna depois de ~1 semana parado.
 > Se o `npm run dev` não conectar, reative no painel do Supabase.
