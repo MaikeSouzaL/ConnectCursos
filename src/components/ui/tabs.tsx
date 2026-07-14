@@ -22,9 +22,11 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        // min-h + flex-wrap: em telas estreitas as abas quebram linha em vez de
-        // vazar para fora (com h fixa, a 2ª fila era cortada/sobreposta).
-        'inline-flex min-h-10 w-fit max-w-full flex-wrap items-center justify-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground',
+        // No mobile as abas rolam na horizontal (sem barra visível) em vez de
+        // vazar ou quebrar linha; a partir de sm voltam a ocupar só o necessário.
+        'flex h-10 w-full max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground',
+        '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden',
+        'sm:w-fit',
         className,
       )}
       {...props}
@@ -40,6 +42,8 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
+        // flex-1 + min-w-auto (padrão do item flex) + nowrap: as abas esticam
+        // quando sobra espaço e nunca encolhem abaixo do texto — aí a lista rola.
         'inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1 text-sm font-medium whitespace-nowrap transition-all outline-none',
         'text-muted-foreground hover:text-foreground',
         'focus-visible:ring-2 focus-visible:ring-ring/40 disabled:pointer-events-none disabled:opacity-50',

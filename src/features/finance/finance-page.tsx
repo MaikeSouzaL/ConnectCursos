@@ -283,7 +283,7 @@ export function FinancePage() {
       </div>
 
       <Tabs defaultValue="visao">
-        <TabsList className="flex-wrap">
+        <TabsList>
           <TabsTrigger value="visao">
             <TrendingUpIcon className="size-4" />
             Visão geral
