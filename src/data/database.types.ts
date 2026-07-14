@@ -210,6 +210,7 @@ export type Database = {
           id: boolean
           logo_url: string | null
           name: string
+          opening_balance: number
           phone: string
           updated_at: string
         }
@@ -220,6 +221,7 @@ export type Database = {
           id?: boolean
           logo_url?: string | null
           name?: string
+          opening_balance?: number
           phone?: string
           updated_at?: string
         }
@@ -230,6 +232,7 @@ export type Database = {
           id?: boolean
           logo_url?: string | null
           name?: string
+          opening_balance?: number
           phone?: string
           updated_at?: string
         }

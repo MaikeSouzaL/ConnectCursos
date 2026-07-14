@@ -114,6 +114,20 @@ function InstitutionTab() {
               placeholder="Rua, número — cidade/UF"
             />
           </div>
+          <div className="sm:col-span-2 space-y-2">
+            <Field
+              id="inst-opening"
+              label="Saldo inicial em caixa (R$)"
+              type="number"
+              step="100"
+              value={String(form.openingBalance)}
+              onChange={(e) => set({ openingBalance: Number(e.target.value) || 0 })}
+            />
+            <p className="text-xs text-muted-foreground">
+              Dinheiro que a instituição já tinha em caixa/banco. É o ponto de partida do saldo no
+              Fluxo de caixa.
+            </p>
+          </div>
         </div>
         <div className="flex justify-end">
           <Button onClick={save} disabled={saving}>

@@ -766,6 +766,8 @@ export interface Institution {
   phone: string
   email: string
   address: string
+  /** Dinheiro já em caixa/banco quando o sistema começou a ser usado. */
+  openingBalance: number
   logoUrl?: string
 }
 function mapInstitution(r: Tables['institution']['Row'] | null): Institution {
@@ -775,6 +777,7 @@ function mapInstitution(r: Tables['institution']['Row'] | null): Institution {
     phone: r?.phone ?? '',
     email: r?.email ?? '',
     address: r?.address ?? '',
+    openingBalance: num(r?.opening_balance),
     logoUrl: r?.logo_url ?? undefined,
   }
 }
@@ -790,6 +793,7 @@ export const institutionService = {
     if (patch.phone !== undefined) upd.phone = patch.phone
     if (patch.email !== undefined) upd.email = patch.email
     if (patch.address !== undefined) upd.address = patch.address
+    if (patch.openingBalance !== undefined) upd.opening_balance = patch.openingBalance
     if (patch.logoUrl !== undefined) upd.logo_url = patch.logoUrl
     const { data, error } = await supabase
       .from('institution')
@@ -1141,18 +1145,32 @@ export const financeService = {
     }
     return { created: toCreate.length, skipped: eligible.length - toCreate.length }
   },
-  /** Fluxo de caixa real do ano corrente, mês a mês, a partir dos pagamentos. */
-  async cashFlow(openingBalance = 0): Promise<CashFlowPoint[]> {
+  /**
+   * Fluxo de caixa real do ano corrente, mês a mês, a partir dos pagamentos.
+   * O saldo parte do saldo inicial cadastrado nas Configurações (o dinheiro que
+   * a instituição já tinha), salvo se um valor for passado explicitamente.
+   */
+  async cashFlow(openingBalance?: number): Promise<CashFlowPoint[]> {
     const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
     const year = TODAY.getFullYear()
     const cm = TODAY.getMonth()
-    const { data } = await supabase
-      .from('payments')
-      .select('*')
-      .gte('reference_month', `${year}-01`)
-      .lte('reference_month', `${year}-12`)
+    const [{ data }, opening] = await Promise.all([
+      supabase
+        .from('payments')
+        .select('*')
+        .gte('reference_month', `${year}-01`)
+        .lte('reference_month', `${year}-12`),
+      openingBalance !== undefined
+        ? Promise.resolve(openingBalance)
+        : supabase
+            .from('institution')
+            .select('opening_balance')
+            .eq('id', true)
+            .maybeSingle()
+            .then(({ data: inst }) => num(inst?.opening_balance)),
+    ])
     const payments = (data ?? []).map(mapPayment)
-    let saldo = openingBalance
+    let saldo = opening
     const out: CashFlowPoint[] = []
     for (let i = 0; i < 12; i++) {
       const ymStr = `${year}-${pad(i + 1)}`
