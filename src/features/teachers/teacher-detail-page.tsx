@@ -91,7 +91,14 @@ export function TeacherDetailPage() {
   const { teacher, courses, classes, studentsCount, rentPayments } = data
 
   const markPaid = async (paymentId: string) => {
-    await financeService.markPaid(paymentId)
+    try {
+      await financeService.markPaid(paymentId)
+    } catch (e) {
+      toast.error('Não foi possível baixar o aluguel', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success('Aluguel baixado')
     setReload((r) => r + 1)
   }

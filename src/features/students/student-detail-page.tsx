@@ -80,7 +80,14 @@ export function StudentDetailPage() {
   const openPayments = payments.filter((p) => p.status !== 'pago')
 
   const markPaid = async (paymentId: string) => {
-    await financeService.markPaid(paymentId)
+    try {
+      await financeService.markPaid(paymentId)
+    } catch (e) {
+      toast.error('Não foi possível registrar o pagamento', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success('Pagamento registrado')
     setReload((r) => r + 1)
   }

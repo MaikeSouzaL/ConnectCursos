@@ -152,7 +152,14 @@ export function FinancePage() {
   const { paged, ...pg } = usePagination(sorted, 10)
 
   const markPaid = async (id: string) => {
-    await financeService.markPaid(id)
+    try {
+      await financeService.markPaid(id)
+    } catch (e) {
+      toast.error('Não foi possível baixar o pagamento', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success('Pagamento baixado')
     setReload((r) => r + 1)
   }

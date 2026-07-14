@@ -1,19 +1,15 @@
-import { useState } from 'react'
-import { CheckCircle2Icon, QrCodeIcon } from 'lucide-react'
-import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+import { CheckCircle2Icon, InfoIcon } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { useAsync } from '@/hooks/use-async'
-import { financeService, studentsService } from '@/data/services'
+import { studentsService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
 import { formatBRL, formatDate } from '@/lib/format'
 
 export function AlunoFinanceiroPage() {
   const studentId = useAuth((s) => s.user?.linkedId ?? '')
-  const [reload, setReload] = useState(0)
-  const { data, loading } = useAsync(() => studentsService.details(studentId), [studentId, reload])
+  const { data, loading } = useAsync(() => studentsService.details(studentId), [studentId])
 
   if (loading || !data) {
     return <Skeleton className="h-64 w-full rounded-2xl" />
@@ -23,13 +19,6 @@ export function AlunoFinanceiroPage() {
     .filter((p) => p.kind === 'mensalidade')
     .sort((a, b) => b.dueDate.localeCompare(a.dueDate))
   const current = mensalidades[0]
-
-  const pay = async () => {
-    if (!current) return
-    await financeService.markPaid(current.id)
-    toast.success('Pagamento confirmado', { description: 'Pix recebido com sucesso.' })
-    setReload((r) => r + 1)
-  }
 
   return (
     <div className="space-y-5">
@@ -57,10 +46,18 @@ export function AlunoFinanceiroPage() {
                 <CheckCircle2Icon className="size-4" /> Pagamento em dia. Obrigado!
               </div>
             ) : (
-              <Button size="lg" className="w-full" onClick={pay}>
-                <QrCodeIcon className="size-5" />
-                Pagar com Pix
-              </Button>
+              // Havia aqui um botão "Pagar com Pix" que não pagava nada: chamava
+              // markPaid, a RLS barrava (só o admin escreve em payments), e a
+              // tela anunciava "Pix recebido com sucesso" com a mensalidade
+              // pendente logo abaixo. Não existe integração de pagamento no
+              // sistema — enquanto não existir, a tela informa em vez de fingir.
+              <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3 text-xs text-muted-foreground">
+                <InfoIcon className="mt-0.5 size-4 shrink-0" />
+                <p>
+                  O pagamento é feito direto com a secretaria. Assim que a escola confirmar, o
+                  status muda aqui.
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

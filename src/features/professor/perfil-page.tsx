@@ -1,15 +1,13 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BriefcaseIcon,
+  InfoIcon,
   LogOutIcon,
   MailIcon,
   MoonIcon,
   PhoneIcon,
-  QrCodeIcon,
   SunIcon,
 } from 'lucide-react'
-import { toast } from 'sonner'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,7 +17,7 @@ import { StatusBadge } from '@/components/shared/status-badge'
 import { ChangePasswordCard } from '@/features/auth/change-password-card'
 import { PushCard } from '@/features/push/push-card'
 import { useAsync } from '@/hooks/use-async'
-import { financeService, teachersService } from '@/data/services'
+import { teachersService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
 import { useTheme } from '@/hooks/use-theme'
 import { formatBRL, initials } from '@/lib/format'
@@ -43,21 +41,11 @@ export function ProfessorPerfilPage() {
   const { resolvedTheme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const teacherId = user?.linkedId ?? ''
-  const [reload, setReload] = useState(0)
-  const { data, loading } = useAsync(() => teachersService.details(teacherId), [teacherId, reload])
+  const { data, loading } = useAsync(() => teachersService.details(teacherId), [teacherId])
 
   if (loading || !data) return <Skeleton className="h-64 w-full rounded-2xl" />
 
-  const { teacher, rentPayments } = data
-  const openRent = rentPayments.find((p) => p.status !== 'pago')
-
-  const payRent = async () => {
-    if (!openRent) return
-    await financeService.markPaid(openRent.id)
-    teacher.rentStatus = 'pago'
-    toast.success('Aluguel pago', { description: 'Pix enviado com sucesso.' })
-    setReload((r) => r + 1)
-  }
+  const { teacher } = data
 
   return (
     <div className="space-y-5">
@@ -91,9 +79,14 @@ export function ProfessorPerfilPage() {
             <StatusBadge kind="payment" value={teacher.rentStatus} />
           </div>
           {teacher.rentStatus !== 'pago' && (
-            <Button size="lg" className="w-full" onClick={payRent}>
-              <QrCodeIcon className="size-5" /> Pagar aluguel com Pix
-            </Button>
+            // Havia aqui um "Pagar aluguel com Pix" que não pagava nada. Pior:
+            // ele forçava teacher.rentStatus = 'pago' no objeto em memória, para
+            // a tela mostrar "pago" mesmo com a RLS barrando a escrita (só o
+            // admin escreve em payments). A baixa é da secretaria.
+            <div className="flex items-start gap-2 rounded-lg bg-secondary/50 p-3 text-xs text-muted-foreground">
+              <InfoIcon className="mt-0.5 size-4 shrink-0" />
+              <p>O acerto do aluguel é feito com a secretaria, que dá a baixa por aqui.</p>
+            </div>
           )}
         </CardContent>
       </Card>

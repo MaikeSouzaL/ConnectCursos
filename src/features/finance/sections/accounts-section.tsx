@@ -92,7 +92,14 @@ export function AccountsSection({
   }, [items])
 
   const markPaid = async (id: string) => {
-    await financeService.markPaid(id)
+    try {
+      await financeService.markPaid(id)
+    } catch (e) {
+      toast.error('Não foi possível dar a baixa', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
+      })
+      return
+    }
     toast.success(isReceber ? 'Recebimento registrado' : 'Pagamento registrado')
     setReload((r) => r + 1)
     onChanged?.()

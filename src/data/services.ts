@@ -1420,15 +1420,23 @@ export const financeService = {
       pending,
     }
   },
-  async markPaid(id: string): Promise<Payment | undefined> {
+  /**
+   * Baixa o pagamento. Só o admin: a RLS de payments dá escrita a ele e a mais
+   * ninguém, e é ela que decide — não a tela.
+   */
+  async markPaid(id: string): Promise<Payment> {
     const { data: cur } = await supabase.from('payments').select('method').eq('id', id).maybeSingle()
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('payments')
       .update({ status: 'pago', paid_at: new Date().toISOString(), method: cur?.method ?? 'pix' })
       .eq('id', id)
       .select()
       .single()
-    return data ? mapPayment(data) : undefined
+    // Sem checar, a RLS barrava a escrita em silêncio e devolvia undefined — e a
+    // tela anunciava "Pagamento confirmado" com a mensalidade ainda pendente na
+    // linha de baixo.
+    if (error || !data) throw new Error(error?.message ?? 'Falha ao baixar o pagamento')
+    return mapPayment(data)
   },
   async create(data: Omit<Payment, 'id'>): Promise<Payment> {
     const { data: row, error } = await supabase
