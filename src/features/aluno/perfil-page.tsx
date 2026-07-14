@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { ChangePasswordCard } from '@/features/auth/change-password-card'
 import { useAsync } from '@/hooks/use-async'
 import { studentsService } from '@/data/services'
 import { useAuth } from '@/features/auth/auth-store'
@@ -69,6 +70,8 @@ export function AlunoPerfilPage() {
           <Row icon={IdCardIcon} label="Matrícula" value={formatDate(data.enrolledAt)} />
         </CardContent>
       </Card>
+
+      <ChangePasswordCard />
 
       <Card>
         <CardContent className="space-y-3">

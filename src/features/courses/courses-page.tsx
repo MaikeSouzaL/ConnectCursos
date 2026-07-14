@@ -61,7 +61,7 @@ function CourseCard({ course, onSaved }: { course: CourseWithStats; onSaved: () 
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Editar ${course.name}`}
-                className="opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                className="text-muted-foreground hover:text-foreground"
               >
                 <PencilIcon className="size-4" />
               </Button>
