@@ -96,7 +96,22 @@ deploy quebra.
 > alvo — sem ele, `42P10` em tempo de execução, que nenhum typecheck pega.
 > Subir o código antes da migration deixa a produção quebrada até ela chegar.
 
-Para conferir se estão iguais:
+### Conferindo as travas de segurança
+
+`supabase/verificacoes.sql` — cole no SQL Editor (dev **ou** produção) e rode.
+São 20 checagens das travas que o schema promete: sala alugada duas vezes,
+presença duplicada, aluno lendo turma alheia (mensagem **e** imagem), aluno
+quitando a própria mensalidade, professor agendando em nome de outro. Toda
+linha tem que dizer `OK`.
+
+Ele não deixa rastro — roda numa transação que se desfaz sozinha (o resultado
+sai como mensagem de erro; é assim que ele imprime e some).
+
+> **Rode depois de mexer em RLS, em policy de Storage ou em qualquer migration.**
+> Trava de segurança não avisa quando some: um `drop policy` distraído passa
+> pelo typecheck, pelo lint e pelos testes, e a tela continua igual.
+
+### Comparando os schemas
 
 ```sql
 -- rode nos dois; o hash tem que bater
