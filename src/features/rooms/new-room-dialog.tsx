@@ -57,25 +57,33 @@ export function NewRoomDialog({
       .split(',')
       .map((r) => r.trim())
       .filter(Boolean)
-    if (room) {
-      await roomsService.update(room.id, {
-        name: values.name,
-        capacity: Number(values.capacity),
-        hourlyRate: Number(values.hourlyRate),
-        resources,
+    try {
+      if (room) {
+        await roomsService.update(room.id, {
+          name: values.name,
+          capacity: Number(values.capacity),
+          hourlyRate: Number(values.hourlyRate),
+          resources,
+        })
+      } else {
+        await roomsService.create({
+          name: values.name,
+          capacity: Number(values.capacity),
+          hourlyRate: Number(values.hourlyRate),
+          resources,
+          color: `var(--chart-${Math.floor(Math.random() * 5) + 1})`,
+        })
+      }
+    } catch (e) {
+      // Sem isto a falha morria em silêncio: o diálogo fechava e a sala não era
+      // salva. Fica aberto com os dados para não perder o que foi digitado.
+      toast.error(room ? 'Não foi possível salvar a sala' : 'Não foi possível cadastrar a sala', {
+        description: e instanceof Error ? e.message : 'Tente novamente.',
       })
-      toast.success('Sala atualizada', { description: values.name })
-    } else {
-      await roomsService.create({
-        name: values.name,
-        capacity: Number(values.capacity),
-        hourlyRate: Number(values.hourlyRate),
-        resources,
-        color: `var(--chart-${Math.floor(Math.random() * 5) + 1})`,
-      })
-      toast.success('Sala cadastrada', { description: values.name })
-      reset()
+      return
     }
+    toast.success(room ? 'Sala atualizada' : 'Sala cadastrada', { description: values.name })
+    if (!room) reset()
     setOpen(false)
     onSaved?.()
   })
