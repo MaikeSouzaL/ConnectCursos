@@ -113,8 +113,19 @@ select md5(string_agg(a, E'\n' order by a)) from (
 ) t;
 ```
 
-As **edge functions não entram no hash** — compare à parte pelo painel; hoje são
-quatro: `create-admin`, `admin-create-user`, `admin-update-user` e `send-push`.
+As **edge functions não entram no hash** acima — e é fácil elas divergirem sem
+ninguém notar, porque nada avisa. Hoje são quatro: `create-admin`,
+`admin-create-user`, `admin-update-user` e `send-push`.
+
+Para conferir, compare o **`ezbr_sha256`** de cada uma nos dois projetos (a API
+de management devolve na listagem de functions). Ele é derivado do conteúdo do
+bundle: mesmo código nos dois lados = mesmo hash, mesmo com project id e número
+de versão diferentes. Hashes diferentes = código diferente, ponto.
+
+> O que o hash **não** responde é se o deployado bate com este repositório —
+> não há como gerar o mesmo hash a partir do arquivo local. Enquanto o deploy
+> for manual, a única garantia é redeployar do repositório para os dois
+> ambientes na mesma passada.
 
 > O projeto de dev é do plano free: ele hiberna depois de ~1 semana parado.
 > Se o `npm run dev` não conectar, reative no painel do Supabase.
