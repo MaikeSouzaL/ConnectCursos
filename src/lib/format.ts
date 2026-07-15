@@ -32,6 +32,7 @@ function toDate(input: string | number | Date): Date {
   if (input instanceof Date) return input
   // Datas "yyyy-MM-dd" devem ser interpretadas como LOCAIS (evita voltar 1 dia
   // em fusos negativos, pois new Date('yyyy-MM-dd') assume UTC).
+  // Coberto por format.test.ts — não "simplifique" para new Date(input).
   if (typeof input === 'string') {
     const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(input)
     if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
