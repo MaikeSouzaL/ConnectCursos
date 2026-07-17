@@ -54,6 +54,7 @@ function mapStudent(r: Tables['students']['Row'], classIds: string[] = []): Stud
     enrolledAt: r.enrolled_at,
     classIds,
     monthlyFee: num(r.monthly_fee),
+    userId: r.user_id ?? undefined,
   }
 }
 function mapTeacher(r: Tables['teachers']['Row']): Teacher {
@@ -68,6 +69,7 @@ function mapTeacher(r: Tables['teachers']['Row']): Teacher {
     hiredAt: r.hired_at,
     monthlyRent: num(r.monthly_rent),
     rentStatus: r.rent_status,
+    userId: r.user_id ?? undefined,
   }
 }
 function mapCourse(r: Tables['courses']['Row']): Course {
@@ -262,6 +264,39 @@ export interface StudentDetails {
   payments: Payment[]
   attendance: AttendanceRecord[]
   presenceRate: number
+}
+
+/**
+ * Acesso (senha temporária) de professores e alunos. Só o admin usa.
+ *
+ * A senha do Auth é um hash irreversível — não dá para "ver a senha" de novo.
+ * O que existe é a temporária guardada em temp_credentials até o 1º acesso
+ * (migration 0022): dá para revê-la enquanto vale, ou gerar uma nova.
+ */
+export const accessService = {
+  /** Senha temporária ainda válida (null se a pessoa já definiu a própria). */
+  async tempPassword(userId: string): Promise<string | null> {
+    const { data } = await supabase
+      .from('temp_credentials')
+      .select('password')
+      .eq('user_id', userId)
+      .maybeSingle()
+    return data?.password ?? null
+  },
+  /**
+   * Gera uma NOVA senha temporária. Derruba o acesso atual da pessoa: ela terá
+   * de entrar de novo com a nova senha e trocá-la. Devolve a nova para o admin
+   * repassar.
+   */
+  async resetPassword(userId: string): Promise<string> {
+    const { data, error } = await supabase.functions.invoke('admin-reset-password', {
+      body: { user_id: userId },
+    })
+    if (error) throw new Error(await fnError(error, 'Não foi possível gerar a nova senha'))
+    const senha = (data as { tempPassword?: string })?.tempPassword
+    if (!senha) throw new Error('A função não devolveu a nova senha')
+    return senha
+  },
 }
 
 export const studentsService = {

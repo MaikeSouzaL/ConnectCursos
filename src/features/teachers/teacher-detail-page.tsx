@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { AccessCredentials } from '@/components/shared/access-credentials'
 import { NewTeacherDialog } from '@/features/teachers/new-teacher-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, roomName, teachersService } from '@/data/services'
@@ -155,6 +156,8 @@ export function TeacherDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AccessCredentials userId={teacher.userId} quem="professor" />
 
       <Tabs defaultValue="cursos">
         <TabsList>

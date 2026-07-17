@@ -58,6 +58,8 @@ export interface Teacher {
   monthlyRent: number
   /** Situação do aluguel do mês corrente. */
   rentStatus: PaymentStatus
+  /** Id do login (auth) vinculado — usado para rever/gerar senha temporária. */
+  userId?: string
 }
 
 export interface Student {
@@ -73,6 +75,8 @@ export interface Student {
   classIds: ID[]
   /** Valor da mensalidade combinada. */
   monthlyFee: number
+  /** Id do login (auth) vinculado — usado para rever/gerar senha temporária. */
+  userId?: string
 }
 
 export interface Room {

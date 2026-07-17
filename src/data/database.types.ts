@@ -657,6 +657,32 @@ export type Database = {
           },
         ]
       }
+      temp_credentials: {
+        Row: {
+          created_at: string
+          password: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          password: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          password?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "temp_credentials_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

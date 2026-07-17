@@ -108,5 +108,9 @@ Deno.serve(async (req) => {
     await admin.from(table).update({ user_id: created.user.id }).eq('id', linkedId)
   }
 
+  // Guarda a temporária para o admin poder revê-la até o 1º acesso (migration
+  // 0022). O gatilho a apaga quando a pessoa define a própria senha.
+  await admin.from('temp_credentials').insert({ user_id: created.user.id, password: tempPassword })
+
   return json({ userId: created.user.id, tempPassword })
 })

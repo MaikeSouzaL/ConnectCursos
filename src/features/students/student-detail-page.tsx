@@ -26,6 +26,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { AccessCredentials } from '@/components/shared/access-credentials'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, studentsService } from '@/data/services'
 import { formatBRL, formatDate, formatDateTime, formatTime, initials } from '@/lib/format'
@@ -148,6 +149,8 @@ export function StudentDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      <AccessCredentials userId={student.userId} quem="aluno" />
 
       <Tabs defaultValue="turmas">
         <TabsList>
