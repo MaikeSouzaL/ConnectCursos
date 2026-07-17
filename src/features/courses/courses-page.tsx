@@ -8,6 +8,7 @@ import {
   PencilIcon,
   PlusIcon,
   SearchIcon,
+  Trash2Icon,
   UsersIcon,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -27,6 +28,7 @@ import { Separator } from '@/components/ui/separator'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/components/ui/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
 import { NewCourseDialog } from '@/features/courses/new-course-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { coursesService } from '@/data/services'
@@ -64,6 +66,25 @@ function CourseCard({ course, onSaved }: { course: CourseWithStats; onSaved: () 
                 className="text-muted-foreground hover:text-foreground"
               >
                 <PencilIcon className="size-4" />
+              </Button>
+            }
+          />
+          <ExcluirCadastro
+            tipo="curso"
+            nome={course.name}
+            onExcluir={() => coursesService.remove(course.id)}
+            onInativar={async () => {
+              await coursesService.update(course.id, { status: 'inativo' })
+            }}
+            onConcluido={onSaved}
+            trigger={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Excluir ${course.name}`}
+                className="text-muted-foreground hover:text-destructive"
+              >
+                <Trash2Icon className="size-4" />
               </Button>
             }
           />

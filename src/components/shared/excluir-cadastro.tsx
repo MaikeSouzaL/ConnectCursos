@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Trash2Icon, TriangleAlertIcon } from 'lucide-react'
 import { toast } from 'sonner'
@@ -10,43 +10,61 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from '@/components/ui/dialog'
 import type { RemoveResult } from '@/data/services'
 
+const capitalizar = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+
 /**
- * Excluir aluno/professor de vez, com a trava do histórico. Se a pessoa já tem
- * pagamento ou presença, o backend recusa e a tela oferece inativar — a
- * contabilidade não vira registro fantasma.
+ * Excluir de vez, com a trava. Serve para aluno, professor, curso e turma, em
+ * página de detalhe (volta para a lista) ou num card de lista (recarrega). Se
+ * apagar levaria junto algo que importa, o backend recusa e a tela oferece
+ * inativar/arquivar.
  */
 export function ExcluirCadastro({
-  quem,
+  tipo,
   nome,
   onExcluir,
   onInativar,
+  inativarLabel = 'Inativar em vez de excluir',
   voltarPara,
+  onConcluido,
+  trigger,
 }: {
-  quem: 'aluno' | 'professor'
+  /** minúsculo: "aluno", "professor", "curso", "turma". */
+  tipo: string
   nome: string
   onExcluir: () => Promise<RemoveResult>
   onInativar: () => Promise<void>
-  voltarPara: string
+  inativarLabel?: string
+  /** Para onde ir ao concluir (páginas de detalhe). */
+  voltarPara?: string
+  /** Ou, numa lista, o que fazer ao concluir (ex.: recarregar). */
+  onConcluido?: () => void
+  /** Gatilho customizado; se ausente, um botão "Excluir". */
+  trigger?: ReactNode
 }) {
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
   const [ocupado, setOcupado] = useState(false)
-  const [bloqueio, setBloqueio] = useState<{ pagamentos: number; presencas: number } | null>(null)
+  const [bloqueio, setBloqueio] = useState<string | null>(null)
+
+  const concluir = () => {
+    setOpen(false)
+    if (onConcluido) onConcluido()
+    else if (voltarPara) navigate(voltarPara)
+  }
 
   const excluir = async () => {
     setOcupado(true)
     try {
       const r = await onExcluir()
       if (r.ok) {
-        toast.success(`${quem === 'aluno' ? 'Aluno' : 'Professor'} excluído`, { description: nome })
-        setOpen(false)
-        navigate(voltarPara)
+        toast.success(`${capitalizar(tipo)} excluído`, { description: nome })
+        concluir()
       } else {
-        // Tem histórico: troca o diálogo para a opção de inativar.
-        setBloqueio({ pagamentos: r.pagamentos, presencas: r.presencas })
+        setBloqueio(r.detalhe)
       }
     } catch (e) {
       toast.error('Não foi possível excluir', {
@@ -61,11 +79,10 @@ export function ExcluirCadastro({
     setOcupado(true)
     try {
       await onInativar()
-      toast.success(`${quem === 'aluno' ? 'Aluno' : 'Professor'} inativado`, {
+      toast.success(`${capitalizar(tipo)} inativado`, {
         description: 'Some das listas ativas, mas o histórico é mantido.',
       })
-      setOpen(false)
-      navigate(voltarPara)
+      concluir()
     } catch (e) {
       toast.error('Não foi possível inativar', {
         description: e instanceof Error ? e.message : 'Tente novamente.',
@@ -75,13 +92,6 @@ export function ExcluirCadastro({
     }
   }
 
-  const partes = bloqueio
-    ? [
-        bloqueio.pagamentos ? `${bloqueio.pagamentos} pagamento(s)` : '',
-        bloqueio.presencas ? `${bloqueio.presencas} presença(s)` : '',
-      ].filter(Boolean)
-    : []
-
   return (
     <Dialog
       open={open}
@@ -90,15 +100,14 @@ export function ExcluirCadastro({
         if (!o) setBloqueio(null)
       }}
     >
-      <Button
-        variant="outline"
-        size="sm"
-        className="text-destructive hover:bg-destructive/10"
-        onClick={() => setOpen(true)}
-      >
-        <Trash2Icon className="size-4" />
-        Excluir
-      </Button>
+      <DialogTrigger asChild>
+        {trigger ?? (
+          <Button variant="outline" size="sm" className="text-destructive hover:bg-destructive/10">
+            <Trash2Icon className="size-4" />
+            Excluir
+          </Button>
+        )}
+      </DialogTrigger>
 
       <DialogContent>
         {bloqueio ? (
@@ -109,8 +118,8 @@ export function ExcluirCadastro({
               </div>
               <DialogTitle className="text-center">Não dá para excluir</DialogTitle>
               <DialogDescription className="text-center">
-                {nome} já tem {partes.join(' e ')} no sistema. Apagar sumiria com esse histórico.
-                Você pode inativar: some das listas, mas os registros ficam.
+                {nome} tem {bloqueio} no sistema. Apagar levaria isso junto. Você pode inativar: some
+                das listas, mas os registros ficam.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
@@ -118,17 +127,17 @@ export function ExcluirCadastro({
                 Cancelar
               </Button>
               <Button onClick={inativar} disabled={ocupado}>
-                {ocupado ? 'Inativando…' : 'Inativar em vez de excluir'}
+                {ocupado ? 'Salvando…' : inativarLabel}
               </Button>
             </DialogFooter>
           </>
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Excluir {quem}?</DialogTitle>
+              <DialogTitle>Excluir {tipo}?</DialogTitle>
               <DialogDescription>
-                Isso remove <strong>{nome}</strong>, o login e as matrículas de vez. Não dá para
-                desfazer. Se houver histórico financeiro, o sistema vai avisar e sugerir inativar.
+                Isso remove <strong>{nome}</strong> de vez. Não dá para desfazer. Se houver
+                histórico ligado, o sistema avisa e sugere inativar.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

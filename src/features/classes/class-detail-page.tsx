@@ -30,6 +30,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
+import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
 import { NewClassDialog } from '@/features/classes/new-class-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { attendanceService, classesService } from '@/data/services'
@@ -113,16 +114,28 @@ export function ClassDetailPage() {
             Turmas
           </Link>
         </Button>
-        <NewClassDialog
-          klass={klass}
-          onSaved={() => setReload((r) => r + 1)}
-          trigger={
-            <Button variant="outline" size="sm">
-              <PencilIcon className="size-4" />
-              Editar
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <NewClassDialog
+            klass={klass}
+            onSaved={() => setReload((r) => r + 1)}
+            trigger={
+              <Button variant="outline" size="sm">
+                <PencilIcon className="size-4" />
+                Editar
+              </Button>
+            }
+          />
+          <ExcluirCadastro
+            tipo="turma"
+            nome={klass.name}
+            onExcluir={() => classesService.remove(klass.id)}
+            onInativar={async () => {
+              await classesService.update(klass.id, { status: 'concluida' })
+            }}
+            inativarLabel="Arquivar (marcar concluída)"
+            voltarPara="/admin/turmas"
+          />
+        </div>
       </div>
 
       {/* Cabeçalho da turma */}

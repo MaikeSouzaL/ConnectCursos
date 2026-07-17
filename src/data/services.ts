@@ -267,12 +267,11 @@ export interface StudentDetails {
 }
 
 /**
- * Resultado de excluir aluno/professor. A exclusão é recusada quando a pessoa
- * já tem pagamento ou presença — nesse caso a tela oferece inativar.
+ * Resultado de excluir (aluno, professor, curso ou turma). A exclusão é recusada
+ * quando apagar levaria junto histórico que importa; `detalhe` explica o quê
+ * (ex.: "3 pagamento(s) e 2 presença(s)", "5 turma(s)"). A tela oferece inativar.
  */
-export type RemoveResult =
-  | { ok: true }
-  | { ok: false; motivo: 'historico'; pagamentos: number; presencas: number }
+export type RemoveResult = { ok: true } | { ok: false; detalhe: string }
 
 /**
  * Acesso (senha temporária) de professores e alunos. Só o admin usa.
@@ -446,10 +445,22 @@ export const studentsService = {
       body: { linked_id: id, role: 'aluno' },
     })
     if (error) throw new Error(await fnError(error, 'Não foi possível excluir o aluno'))
-    const r = data as RemoveResult
-    if (r?.ok) studentsCache.delete(id)
-    return r
+    const r = data as { ok: boolean; pagamentos?: number; presencas?: number }
+    if (r?.ok) {
+      studentsCache.delete(id)
+      return { ok: true }
+    }
+    return { ok: false, detalhe: descreveHistorico(r?.pagamentos, r?.presencas) }
   },
+}
+
+/** "3 pagamento(s) e 2 presença(s)" — texto da trava de exclusão. */
+function descreveHistorico(pagamentos?: number, presencas?: number): string {
+  return (
+    [pagamentos ? `${pagamentos} pagamento(s)` : '', presencas ? `${presencas} presença(s)` : '']
+      .filter(Boolean)
+      .join(' e ') || 'histórico no sistema'
+  )
 }
 
 // ————————————————————————————————————— Professores
@@ -554,9 +565,12 @@ export const teachersService = {
       body: { linked_id: id, role: 'professor' },
     })
     if (error) throw new Error(await fnError(error, 'Não foi possível excluir o professor'))
-    const r = data as RemoveResult
-    if (r?.ok) teachersCache.delete(id)
-    return r
+    const r = data as { ok: boolean; pagamentos?: number; presencas?: number }
+    if (r?.ok) {
+      teachersCache.delete(id)
+      return { ok: true }
+    }
+    return { ok: false, detalhe: descreveHistorico(r?.pagamentos, r?.presencas) }
   },
 }
 
@@ -645,6 +659,22 @@ export const coursesService = {
     const course = mapCourse(row)
     coursesCache.set(course.id, course)
     return course
+  },
+  /**
+   * Exclui o curso. Trava: se tiver turmas, RECUSA — no banco courses->classes é
+   * ON DELETE CASCADE, então apagar o curso levaria TODAS as turmas dele junto.
+   * Aí o admin inativa o curso, ou apaga as turmas antes.
+   */
+  async remove(id: string): Promise<RemoveResult> {
+    const { count } = await supabase
+      .from('classes')
+      .select('id', { count: 'exact', head: true })
+      .eq('course_id', id)
+    if ((count ?? 0) > 0) return { ok: false, detalhe: `${count} turma(s) vinculada(s)` }
+    const { error } = await supabase.from('courses').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    coursesCache.delete(id)
+    return { ok: true }
   },
 }
 
@@ -761,6 +791,23 @@ export const classesService = {
     const klass = mapClass(row, (links ?? []).map((l) => l.student_id))
     classesCache.set(klass.id, klass)
     return klass
+  },
+  /**
+   * Exclui a turma. Cascateia matrículas e avisos de cancelamento; solta a
+   * presença (attendance.class_id vira null). Trava: se já houver presença
+   * lançada, RECUSA — apagar deixaria esses registros órfãos, sem turma. Aí o
+   * admin arquiva (marca concluída).
+   */
+  async remove(id: string): Promise<RemoveResult> {
+    const { count } = await supabase
+      .from('attendance')
+      .select('id', { count: 'exact', head: true })
+      .eq('class_id', id)
+    if ((count ?? 0) > 0) return { ok: false, detalhe: `${count} presença(s) lançada(s)` }
+    const { error } = await supabase.from('classes').delete().eq('id', id)
+    if (error) throw new Error(error.message)
+    classesCache.delete(id)
+    return { ok: true }
   },
 }
 

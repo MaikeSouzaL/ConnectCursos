@@ -115,7 +115,7 @@ export function StudentDetailPage() {
             }
           />
           <ExcluirCadastro
-            quem="aluno"
+            tipo="aluno"
             nome={student.name}
             onExcluir={() => studentsService.remove(student.id)}
             onInativar={async () => {
