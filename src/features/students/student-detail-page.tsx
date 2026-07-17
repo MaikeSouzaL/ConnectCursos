@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { AccessCredentials } from '@/components/shared/access-credentials'
+import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, studentsService } from '@/data/services'
 import { formatBRL, formatDate, formatDateTime, formatTime, initials } from '@/lib/format'
@@ -102,16 +103,27 @@ export function StudentDetailPage() {
             Alunos
           </Link>
         </Button>
-        <NewStudentDialog
-          student={data.student}
-          onSaved={() => setReload((r) => r + 1)}
-          trigger={
-            <Button variant="outline" size="sm">
-              <PencilIcon className="size-4" />
-              Editar
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <NewStudentDialog
+            student={data.student}
+            onSaved={() => setReload((r) => r + 1)}
+            trigger={
+              <Button variant="outline" size="sm">
+                <PencilIcon className="size-4" />
+                Editar
+              </Button>
+            }
+          />
+          <ExcluirCadastro
+            quem="aluno"
+            nome={student.name}
+            onExcluir={() => studentsService.remove(student.id)}
+            onInativar={async () => {
+              await studentsService.update(student.id, { status: 'trancado' })
+            }}
+            voltarPara="/admin/alunos"
+          />
+        </div>
       </div>
 
       {/* Cabeçalho do aluno */}

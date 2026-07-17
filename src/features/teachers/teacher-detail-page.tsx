@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { AccessCredentials } from '@/components/shared/access-credentials'
+import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
 import { NewTeacherDialog } from '@/features/teachers/new-teacher-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, roomName, teachersService } from '@/data/services'
@@ -113,16 +114,27 @@ export function TeacherDetailPage() {
             Professores
           </Link>
         </Button>
-        <NewTeacherDialog
-          teacher={teacher}
-          onSaved={() => setReload((r) => r + 1)}
-          trigger={
-            <Button variant="outline" size="sm">
-              <PencilIcon className="size-4" />
-              Editar
-            </Button>
-          }
-        />
+        <div className="flex items-center gap-2">
+          <NewTeacherDialog
+            teacher={teacher}
+            onSaved={() => setReload((r) => r + 1)}
+            trigger={
+              <Button variant="outline" size="sm">
+                <PencilIcon className="size-4" />
+                Editar
+              </Button>
+            }
+          />
+          <ExcluirCadastro
+            quem="professor"
+            nome={teacher.name}
+            onExcluir={() => teachersService.remove(teacher.id)}
+            onInativar={async () => {
+              await teachersService.update(teacher.id, { status: 'inativo' })
+            }}
+            voltarPara="/admin/professores"
+          />
+        </div>
       </div>
 
       {/* Cabeçalho do professor */}

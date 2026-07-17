@@ -267,6 +267,14 @@ export interface StudentDetails {
 }
 
 /**
+ * Resultado de excluir aluno/professor. A exclusão é recusada quando a pessoa
+ * já tem pagamento ou presença — nesse caso a tela oferece inativar.
+ */
+export type RemoveResult =
+  | { ok: true }
+  | { ok: false; motivo: 'historico'; pagamentos: number; presencas: number }
+
+/**
  * Acesso (senha temporária) de professores e alunos. Só o admin usa.
  *
  * A senha do Auth é um hash irreversível — não dá para "ver a senha" de novo.
@@ -428,6 +436,20 @@ export const studentsService = {
     studentsCache.set(student.id, student)
     return student
   },
+  /**
+   * Exclui o aluno de vez (linha + login + matrículas). Recusa se houver
+   * histórico de pagamento/presença — aí devolve ok:false e a tela oferece
+   * inativar. A trava real está na edge function; aqui é só o repasse.
+   */
+  async remove(id: string): Promise<RemoveResult> {
+    const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+      body: { linked_id: id, role: 'aluno' },
+    })
+    if (error) throw new Error(await fnError(error, 'Não foi possível excluir o aluno'))
+    const r = data as RemoveResult
+    if (r?.ok) studentsCache.delete(id)
+    return r
+  },
 }
 
 // ————————————————————————————————————— Professores
@@ -525,6 +547,16 @@ export const teachersService = {
     const teacher = mapTeacher(row)
     teachersCache.set(teacher.id, teacher)
     return teacher
+  },
+  /** Exclui o professor de vez. Mesma trava do aluno (histórico bloqueia). */
+  async remove(id: string): Promise<RemoveResult> {
+    const { data, error } = await supabase.functions.invoke('admin-delete-user', {
+      body: { linked_id: id, role: 'professor' },
+    })
+    if (error) throw new Error(await fnError(error, 'Não foi possível excluir o professor'))
+    const r = data as RemoveResult
+    if (r?.ok) teachersCache.delete(id)
+    return r
   },
 }
 
