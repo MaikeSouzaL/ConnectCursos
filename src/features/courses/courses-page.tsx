@@ -29,6 +29,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatCard } from '@/components/ui/stat-card'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
+import { ReativarBotao } from '@/components/shared/reativar-botao'
 import { NewCourseDialog } from '@/features/courses/new-course-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { coursesService } from '@/data/services'
@@ -55,6 +56,16 @@ function CourseCard({ course, onSaved }: { course: CourseWithStats; onSaved: () 
             <StatusBadge kind="course" value={course.status} />
             <Badge variant="secondary">{course.category}</Badge>
           </div>
+          {course.status === 'inativo' && (
+            <ReativarBotao
+              tipo="curso"
+              iconOnly
+              onReativar={async () => {
+                await coursesService.update(course.id, { status: 'ativo' })
+              }}
+              onConcluido={onSaved}
+            />
+          )}
           <NewCourseDialog
             course={course}
             onSaved={onSaved}

@@ -32,6 +32,7 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge'
 import { AccessCredentials } from '@/components/shared/access-credentials'
 import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
+import { ReativarBotao } from '@/components/shared/reativar-botao'
 import { NewTeacherDialog } from '@/features/teachers/new-teacher-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, roomName, teachersService } from '@/data/services'
@@ -115,6 +116,15 @@ export function TeacherDetailPage() {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {teacher.status === 'inativo' && (
+            <ReativarBotao
+              tipo="professor"
+              onReativar={async () => {
+                await teachersService.update(teacher.id, { status: 'ativo' })
+              }}
+              onConcluido={() => setReload((r) => r + 1)}
+            />
+          )}
           <NewTeacherDialog
             teacher={teacher}
             onSaved={() => setReload((r) => r + 1)}

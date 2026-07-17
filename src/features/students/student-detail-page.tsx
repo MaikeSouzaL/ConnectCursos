@@ -28,6 +28,7 @@ import {
 import { StatusBadge } from '@/components/shared/status-badge'
 import { AccessCredentials } from '@/components/shared/access-credentials'
 import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
+import { ReativarBotao } from '@/components/shared/reativar-botao'
 import { useAsync } from '@/hooks/use-async'
 import { financeService, studentsService } from '@/data/services'
 import { formatBRL, formatDate, formatDateTime, formatTime, initials } from '@/lib/format'
@@ -104,6 +105,15 @@ export function StudentDetailPage() {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {student.status === 'trancado' && (
+            <ReativarBotao
+              tipo="aluno"
+              onReativar={async () => {
+                await studentsService.update(student.id, { status: 'ativo' })
+              }}
+              onConcluido={() => setReload((r) => r + 1)}
+            />
+          )}
           <NewStudentDialog
             student={data.student}
             onSaved={() => setReload((r) => r + 1)}

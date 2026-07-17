@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/table'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { ExcluirCadastro } from '@/components/shared/excluir-cadastro'
+import { ReativarBotao } from '@/components/shared/reativar-botao'
 import { NewClassDialog } from '@/features/classes/new-class-dialog'
 import { useAsync } from '@/hooks/use-async'
 import { attendanceService, classesService } from '@/data/services'
@@ -115,6 +116,15 @@ export function ClassDetailPage() {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {klass.status === 'concluida' && (
+            <ReativarBotao
+              tipo="turma"
+              onReativar={async () => {
+                await classesService.update(klass.id, { status: 'em_andamento' })
+              }}
+              onConcluido={() => setReload((r) => r + 1)}
+            />
+          )}
           <NewClassDialog
             klass={klass}
             onSaved={() => setReload((r) => r + 1)}
