@@ -129,8 +129,9 @@ select md5(string_agg(a, E'\n' order by a)) from (
 ```
 
 As **edge functions não entram no hash** acima — e é fácil elas divergirem sem
-ninguém notar, porque nada avisa. Hoje são quatro: `create-admin`,
-`admin-create-user`, `admin-update-user` e `send-push`.
+ninguém notar, porque nada avisa. Hoje são seis: `create-admin`,
+`admin-create-user`, `admin-update-user`, `admin-reset-password`,
+`admin-delete-user` e `send-push`.
 
 Para conferir, compare o **`ezbr_sha256`** de cada uma nos dois projetos (a API
 de management devolve na listagem de functions). Ele é derivado do conteúdo do
